@@ -1,0 +1,148 @@
+Gallery Styles - CSS version for web use
+
+.gallery-container {
+  margin-top: 30px;
+  padding: 20px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gallery-container-mobile {
+  padding-top: 15px;
+  margin-top: 20px;
+}
+
+.gallery-title {
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 15px;
+  color: #FF1493;
+}
+
+.image-scroll-view {
+  margin: 10px 0;
+  height: 220px;
+  overflow: hidden;
+  position: relative;
+}
+
+.image-scroll-view-desktop {
+  height: 300px; /* Taller container for desktop images */
+}
+
+.image-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gallery-image {
+  width: 95%;
+  height: 200px;
+  border-radius: 15px;
+  border: 2px solid rgba(255, 20, 147, 0.3);
+  object-fit: cover;
+}
+
+.gallery-image-desktop {
+  width: 60%; /* Narrower on desktop */
+  height: 280px; /* Taller on desktop */
+}
+
+.gallery-image-mobile {
+  width: 90%; /* Fit better within mobile container */
+  height: 180px; /* Slightly shorter on mobile for better fit */
+}
+
+.gallery-hint {
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.7;
+  font-style: italic;
+  margin-top: 10px;
+}
+
+/* Dot indicators */
+.dots-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-top: 15px;
+  margin-bottom: 10px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  margin: 0 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.active-dot {
+  background-color: #FF1493;
+}
+
+.inactive-dot {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Gallery navigation styles */
+.gallery-navigation {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 0 10px;
+}
+
+.nav-button {
+  padding: 8px 15px;
+  border-radius: 20px;
+  background-color: #FF1493;
+  min-width: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.prev-button {
+  background-color: #FF1493;
+}
+
+.next-button {
+  background-color: #FF1493;
+}
+
+.disabled-button {
+  background-color: rgba(255, 255, 255, 0.2);
+  cursor: not-allowed;
+}
+
+.nav-button-text {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.disabled-button-text {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.image-counter {
+  font-size: 16px;
+  font-weight: bold;
+  color: #FF1493;
+  text-align: center;
+}
