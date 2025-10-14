@@ -1,18 +1,18 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
-import { Platform, StyleSheet, TouchableOpacity, Alert, Modal, FlatList, Dimensions, View } from 'react-native';
-import { useState, useRef, useEffect } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Dimensions, FlatList, Modal, TouchableOpacity, View } from 'react-native';
 
-import { HelloWave } from '@/components/HelloWave';
+import { AnimatedHeart } from '@/components/AnimatedHeart';
+import { ImageWithTightBorder } from '@/components/ImageWithTightBorder';
+import OrientationIcon from '@/components/OrientationIcon';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { AnimatedHeart } from '@/components/AnimatedHeart';
-import { faArrowLeft, faTrophy } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
+import { GalleryStyles, MainStyles, PopupStyles } from '@/styles';
 import { memoryImages } from '@/utils/memoryImages';
-import { PopupStyles, GalleryStyles, MainStyles } from '@/styles';
-import OrientationIcon from '@/components/OrientationIcon';
 
 
 type ImageFilter = 'all' | 'horizontal' | 'vertical';
@@ -20,14 +20,99 @@ type ImageFilter = 'all' | 'horizontal' | 'vertical';
 export default function HomeScreen() {
   console.log('Memory images loaded:', memoryImages.length, memoryImages);
   
+  // Authentication state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<any[]>([]);
+  const [allImages, setAllImages] = useState(memoryImages);
+  
   const [showPopup, setShowPopup] = useState(true);
-  const [clickCount, setClickCount] = useState(0);
-  const [firstClickTime, setFirstClickTime] = useState<number | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageFilter, setImageFilter] = useState<ImageFilter>('all');
   const [imageOrientations, setImageOrientations] = useState<('horizontal' | 'vertical')[]>([]);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  
+  // Authentication functions
+  const loadAuthState = async () => {
+    try {
+      const savedAuthState = await AsyncStorage.getItem('isLoggedIn');
+      const savedImages = await AsyncStorage.getItem('uploadedImages');
+      
+      if (savedAuthState === 'true') {
+        setIsLoggedIn(true);
+      }
+      
+      if (savedImages) {
+        const parsedImages = JSON.parse(savedImages);
+        setUploadedImages(parsedImages);
+        setAllImages([...memoryImages, ...parsedImages]);
+      }
+    } catch (error) {
+      console.log('Error loading auth state:', error);
+    }
+  };
+  
+  const login = async () => {
+    await AsyncStorage.setItem('isLoggedIn', 'true');
+    setIsLoggedIn(true);
+  };
+  
+  const logout = async () => {
+    await AsyncStorage.setItem('isLoggedIn', 'false');
+    setIsLoggedIn(false);
+  };
+  
+  // Image upload functions
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        await saveUploadedImage(asset);
+      }
+    } catch (error) {
+      console.log('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+  
+  const saveUploadedImage = async (asset: any) => {
+    try {
+      const filename = `uploaded_${Date.now()}.${asset.uri.split('.').pop()}`;
+      
+      const newImage = {
+        uri: asset.uri, // Use the original URI directly
+        width: asset.width,
+        height: asset.height,
+        filename: filename,
+        isUploaded: true
+      };
+      
+      const updatedUploadedImages = [...uploadedImages, newImage];
+      const updatedAllImages = [...allImages, newImage];
+      
+      setUploadedImages(updatedUploadedImages);
+      setAllImages(updatedAllImages);
+      
+      // Save to AsyncStorage
+      await AsyncStorage.setItem('uploadedImages', JSON.stringify(updatedUploadedImages));
+      
+      Alert.alert('Success', 'Image uploaded successfully!');
+    } catch (error) {
+      console.log('Error saving image:', error);
+      Alert.alert('Error', 'Failed to save image');
+    }
+  };
   
   // Get screen width for full-width images
   const screenWidth = Dimensions.get('window').width;
@@ -45,6 +130,11 @@ export default function HomeScreen() {
     const subscription = Dimensions.addEventListener('change', updateLayout);
     return () => subscription?.remove();
   }, []);
+  
+  // Load authentication state on mount
+  useEffect(() => {
+    loadAuthState();
+  }, []);
 
   // Detect image orientations using onLoad callback
   const handleImageLoad = (index: number, event: any) => {
@@ -59,8 +149,8 @@ export default function HomeScreen() {
     }
   };
 
-  // Filter images based on orientation
-  const filteredImages = memoryImages.filter((image, index) => {
+  // Filter images based on orientation (now using allImages including uploaded ones)
+  const filteredImages = allImages.filter((image, index) => {
     if (imageFilter === 'all') return true;
     if (imageOrientations.length === 0) return true; // Show all if orientations not detected yet
     return imageOrientations[index] === imageFilter;
@@ -68,14 +158,8 @@ export default function HomeScreen() {
 
   // Calculate dynamic height based on current filter and screen size
   const getScrollViewHeight = () => {
-    if (imageFilter === 'horizontal') {
-      return isLargeScreen ? 460 : 340; // Height for horizontal images
-    } else if (imageFilter === 'vertical') {
-      return isLargeScreen ? 560 : 440; // Height for vertical images
-    } else {
-      // Mixed content - use a middle ground
-      return isLargeScreen ? 510 : 390;
-    }
+    // Further increased heights for bigger images with minimal spacing
+    return isLargeScreen ? 620 : 540;
   };
 
   // Update current index when filter changes
@@ -93,7 +177,7 @@ export default function HomeScreen() {
 
   // Render item for FlatList
   const renderImageItem = ({ item, index }: { item: any; index: number }) => {
-    const originalIndex = memoryImages.indexOf(item);
+    const originalIndex = allImages.indexOf(item);
     const imageOrientation = imageOrientations[originalIndex] || 'horizontal'; // Default to horizontal if not detected
     
     // Determine container style based on orientation
@@ -109,119 +193,34 @@ export default function HomeScreen() {
           { width: imageItemWidth }
         ];
 
-    // Determine image style based on orientation and screen size
-    const imageStyle = () => {
-      if (imageOrientation === 'horizontal') {
-        return isLargeScreen ? GalleryStyles.horizontalImageDesktop : GalleryStyles.horizontalImageMobile;
-      } else {
-        return isLargeScreen ? GalleryStyles.verticalImageDesktop : GalleryStyles.verticalImageMobile;
-      }
-    };
-
     console.log(`Rendering image ${index} (${imageOrientation}):`, item);
     return (
       <ThemedView style={containerStyle}>
-        <Image
-          source={item || require('@/assets/images/sun_kastl.jpg')} // Fallback image
-          style={imageStyle()}
-          contentFit="contain"
-          transition={200}
-          placeholder={{ blurhash: 'LGF5]+Yk^6#M@-5c,1J5@[or[Q6.' }}
-          onLoad={(event) => {
+        <ImageWithTightBorder
+          source={item.isUploaded ? { uri: item.uri } : (item || require('@/assets/images/sun_kastl.jpg'))} // Handle uploaded images
+          orientation={imageOrientation}
+          isLargeScreen={isLargeScreen}
+          containerStyle={{ flex: 1, width: '100%', height: '100%' }}
+          onImageLoad={(event) => {
             console.log(`Image ${index} loaded successfully`);
             handleImageLoad(originalIndex, event);
           }}
-          onError={(error) => console.log(`Image ${index} error:`, error)}
         />
       </ThemedView>
     );
   };
 
   const handleHeartClick = () => {
-    const currentTime = Date.now();
-    
-    if (clickCount === 0) {
-      // First click - start the timer
-      setFirstClickTime(currentTime);
-      setClickCount(1);
-      
-      // Reset after 5 seconds if target not reached
-      timeoutRef.current = setTimeout(() => {
-        setClickCount(0);
-        setFirstClickTime(null);
-      }, 5000);
-      
-    } else if (firstClickTime && currentTime - firstClickTime <= 5000) {
-      // Within 5 seconds window
-      const newCount = clickCount + 1;
-      setClickCount(newCount);
-      
-      if (newCount >= 15) {
-        // Target reached! Clear timeout and dismiss popup
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-        setClickCount(0);
-        setFirstClickTime(null);
-        setShowPopup(false);
-      }
-    } else {
-      // Outside 5 seconds window - restart
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      setFirstClickTime(currentTime);
-      setClickCount(1);
-      
-      timeoutRef.current = setTimeout(() => {
-        setClickCount(0);
-        setFirstClickTime(null);
-      }, 5000);
-    }
+    setShowPopup(false);
   };
 
   const handleMainHeartClick = () => {
-    const currentTime = Date.now();
-    
-    if (clickCount === 0) {
-      // First click - start the timer
-      setFirstClickTime(currentTime);
-      setClickCount(1);
-      
-      // Reset after 5 seconds if target not reached
-      timeoutRef.current = setTimeout(() => {
-        setClickCount(0);
-        setFirstClickTime(null);
-      }, 5000);
-      
-    } else if (firstClickTime && currentTime - firstClickTime <= 5000) {
-      // Within 5 seconds window
-      const newCount = clickCount + 1;
-      setClickCount(newCount);
-      
-      if (newCount >= 10) {
-        // Target reached! Clear timeout and navigate to secret page
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-        setClickCount(0);
-        setFirstClickTime(null);
-        
-        // Navigate to secret page
-        router.push('/secret-page' as any);
-      }
+    if (!isLoggedIn) {
+      // Navigate to login page
+      router.push('/login' as any);
     } else {
-      // Outside 5 seconds window - restart
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      setFirstClickTime(currentTime);
-      setClickCount(1);
-      
-      timeoutRef.current = setTimeout(() => {
-        setClickCount(0);
-        setFirstClickTime(null);
-      }, 5000);
+      // Navigate to secret page if logged in
+      router.push('/secret-page');
     }
   };
 
@@ -256,35 +255,11 @@ export default function HomeScreen() {
                 onPress={handleHeartClick}
                 style={PopupStyles.popupHeartContainer}
                 activeOpacity={0.7}
-                clickCount={clickCount}
               />
               
-              {clickCount > 0 && (
-                <ThemedView style={PopupStyles.progressContainer}>
-                  <ThemedText style={PopupStyles.progressText}>
-                    {clickCount}/15 clicks
-                  </ThemedText>
-                  {firstClickTime && (
-                    <ThemedText style={PopupStyles.timerText}>
-                      {((Date.now() - firstClickTime) / 1000).toFixed(1)}s / 5.0s
-                    </ThemedText>
-                  )}
-                  <ThemedView style={PopupStyles.progressBar}>
-                    <ThemedView 
-                      style={[
-                        PopupStyles.progressFill, 
-                        { width: `${(clickCount / 15) * 100}%` }
-                      ]} 
-                    />
-                  </ThemedView>
-                </ThemedView>
-              )}
-              
-              {clickCount === 0 && (
-                <ThemedText style={PopupStyles.startText}>
-                  Tap the heart to start the challenge!
-                </ThemedText>
-              )}
+              <ThemedText style={PopupStyles.startText}>
+                Tap the heart to enter the gallery!
+              </ThemedText>
             </ThemedView>
           </ThemedView>
         </ThemedView>
@@ -329,15 +304,9 @@ export default function HomeScreen() {
               color="#FF1493"
               onPress={handleMainHeartClick}
               activeOpacity={0.7}
-              clickCount={clickCount}
             />
-            {clickCount > 0 && (
-              <ThemedText style={MainStyles.clickCounter}>
-                {clickCount}/10 {firstClickTime && ((Date.now() - firstClickTime) / 1000).toFixed(1)}s
-              </ThemedText>
-            )}
             <ThemedText style={MainStyles.heartHint}>
-              💖 Tap the heart 10 times in 5 seconds for a surprise!
+              💖 {isLoggedIn ? 'Tap the heart to visit the secret page!' : 'Tap the heart to login for admin features!'}
             </ThemedText>
           </ThemedView>
         </ThemedView>
@@ -345,27 +314,101 @@ export default function HomeScreen() {
         {/* Poem Section - positioned outside gallery container */}
         <ThemedView style={[GalleryStyles.poemSection, !isLargeScreen && GalleryStyles.poemSectionMobile]}>
           <ThemedText style={GalleryStyles.poemTitle}>
-            "Memories in Motion"
+            "Szeretlek"
           </ThemedText>
           <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
-            Through frames of time, our stories unfold,
+            Kérdezd: szeretlek-e? s megmondom én, hogy
           </ThemedText>
           <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
-            Each image a treasure, more precious than gold.
+            Szeretlek, mert ezt mondhatom;
           </ThemedText>
           <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
-            In vertical moments and horizontal dreams,
+            De oh ne kérdezd: mennyire szeretlek?
           </ThemedText>
           <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
-            Life captures beauty in digital streams.
+            Mert én azt magam sem tudom!
           </ThemedText>
           <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Azt tudni csak, hogy mély a tengerszem,
           </ThemedText>
           <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
-            Filter through time, sort through the past,
+            De milyen mély? nem tudja senki sem.
+          </ThemedText>
+          <ThemedView style={{ marginBottom: 15 }} />
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Mondhatnék esküt, hosszu és nagy esküt,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Az ég felé tartván kezem,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Hogy szívem minden dobbanása érted
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            És egyedűl érted leszen,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Hogy öröklámpa benne a hüség,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Mely még ott lenn a föld alatt is ég.
+          </ThemedText>
+          <ThemedView style={{ marginBottom: 15 }} />
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            S mondhatnék átkot, hosszu és nagy átkot,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Mely, mint a villám, érjen el,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            S égesse, tépje lelkemet legmélyebb
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Pokolba mártott körmivel,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Ha elfeledlek téged, kedvesem,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Sőt ha rólad csak megfeledkezem.
+          </ThemedText>
+          <ThemedView style={{ marginBottom: 15 }} />
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Nem mondok esküt és átkot. Jaj annak,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Jaj, akit ez tart vissza csak.
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Én eskü s átok nélkül is örökre
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Lelkem lelkében tartalak,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Ott fogsz te állni magas-fényesen,
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Mint a tejút a legmagasb egen.
+          </ThemedText>
+          <ThemedView style={{ marginBottom: 15 }} />
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            S örök hűségem, oh ez a hüség is
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Még a te érdemed csupán;
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Hogy szerethetne mást többé, akit te
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Megszeretél, dicső leány?
+          </ThemedText>
+          <ThemedText style={[GalleryStyles.poemText, GalleryStyles.poemLine]}>
+            Ki egyszer már a mennybe szállt vala,
           </ThemedText>
           <ThemedText style={[GalleryStyles.poemText]}>
-            These memories are made to forever last.
+            Nem látja azt a föld többé soha!
           </ThemedText>
         </ThemedView>
 
@@ -374,6 +417,41 @@ export default function HomeScreen() {
           <ThemedText style={GalleryStyles.galleryTitle}>
             📸 Memory Gallery
           </ThemedText>
+          
+          {/* Admin Controls - only show when logged in */}
+          {isLoggedIn && (
+            <ThemedView style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 15,
+              paddingHorizontal: 10,
+            }}>
+              <TouchableOpacity 
+                style={[
+                  GalleryStyles.navButton,
+                  { backgroundColor: '#28a745', minWidth: 100 }
+                ]}
+                onPress={pickImage}
+              >
+                <ThemedText style={GalleryStyles.navButtonText}>
+                  📷 Upload Image
+                </ThemedText>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  GalleryStyles.navButton,
+                  { backgroundColor: '#dc3545', minWidth: 80 }
+                ]}
+                onPress={logout}
+              >
+                <ThemedText style={GalleryStyles.navButtonText}>
+                  🔐 Logout
+                </ThemedText>
+              </TouchableOpacity>
+            </ThemedView>
+          )}
           
           {/* Filter buttons */}
           <ThemedView style={GalleryStyles.filterButtonsContainer}>
@@ -388,7 +466,7 @@ export default function HomeScreen() {
                 GalleryStyles.filterButtonText,
                 imageFilter === 'all' && GalleryStyles.filterButtonTextActive
               ]}>
-                All ({memoryImages.length})
+                All ({allImages.length})
               </ThemedText>
             </TouchableOpacity>
             

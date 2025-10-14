@@ -230,19 +230,58 @@ export const GalleryStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
-    height: 320, // Container height for horizontal images
+    height: 520, // Increased from 460 for bigger images with less spacing
+    flex: 1, // Allow full space usage for centering
   },
   verticalImageContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
-    height: 420, // Container height for vertical images
+    height: 520, // Increased from 460 for bigger images with less spacing
+    flex: 1, // Allow full space usage for centering
   },
   horizontalImageContainerDesktop: {
-    height: 440, // Taller container for desktop horizontal images
+    height: 600, // Increased from 540 for bigger desktop images
   },
   verticalImageContainerDesktop: {
-    height: 540, // Even taller container for desktop vertical images
+    height: 600, // Increased from 540 for bigger desktop images
+  },
+  
+  // New tight-fitting border styles
+  imageWithBorderWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center', // Center the wrapper itself
+    borderRadius: 15,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 20, 147, 0.4)',
+    overflow: 'hidden',
+  },
+  imageWithBorderWrapperDesktop: {
+    borderRadius: 20,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 20, 147, 0.5)',
+  },
+  imageWithTightBorder: {
+    width: '100%',
+    height: '100%',
+  },
+  // Orientation-specific tight border styles
+  horizontalImageWrapperMobile: {
+    maxWidth: '95%',
+    maxHeight: 280,
+  },
+  verticalImageWrapperMobile: {
+    maxWidth: '85%',
+    maxHeight: 380,
+  },
+  horizontalImageWrapperDesktop: {
+    maxWidth: '70%',
+    maxHeight: 400,
+  },
+  verticalImageWrapperDesktop: {
+    maxWidth: '50%',
+    maxHeight: 500,
   },
   
   // Filter buttons styles

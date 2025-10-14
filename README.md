@@ -1,8 +1,10 @@
-# Welcome to your Expo app 👋
+# Memory Storage App �
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This is a React Native app built with [Expo](https://expo.dev) that displays personal memory photos with interactive features, gamified challenges, and cross-platform styling.
 
 ## Get started
+
+### Option 1: Local Development
 
 1. Install dependencies
 
@@ -15,6 +17,47 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    ```bash
    npx expo start
    ```
+
+### Option 2: Docker Development 🐳
+
+For a containerized development environment:
+
+1. **Quick start with Docker**:
+
+   ```bash
+   docker-compose up --build
+   ```
+
+2. **Access the app**:
+   - Expo DevTools: http://localhost:19000
+   - Web Version: http://localhost:19002
+
+For detailed Docker instructions, see [DOCKER_SETUP.md](./DOCKER_SETUP.md).
+
+## Memory Storage Features
+
+- 📱 **Cross-platform**: Runs on iOS, Android, and Web
+- 🖼️ **Auto image management**: Automatically imports images from `assets/images/memmory/`
+- 🎮 **Gamified interactions**: Heart-clicking challenges with easter eggs
+- 📐 **Orientation filtering**: Automatically categorizes and filters horizontal/vertical images
+- 🎨 **Dual styling system**: TypeScript StyleSheets for mobile, CSS for web
+- 🔄 **Responsive design**: Adapts to different screen sizes
+
+## Adding Memory Images
+
+1. Add your photos to `assets/images/memmory/`
+2. Run the image generation script:
+   ```bash
+   npm run generate-images
+   ```
+3. Restart the development server
+
+## Available Scripts
+
+- `npm start` - Start Expo development server
+- `npm run web` - Start web-only development
+- `npm run generate-images` - Regenerate image imports after adding photos
+- `npm run reset-project` - Clean slate (moves starter to app-example)
 
 In the output, you'll find options to open the app in a
 

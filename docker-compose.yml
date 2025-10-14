@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  memmorystorage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memmorystorage-dev
+    ports:
+      # Metro bundler
+      - "8081:8081"
+      # Expo dev tools  
+      - "19000:19000"
+      - "19001:19001"
+      # Web development
+      - "19002:19002"
+    volumes:
+      # Mount source code for live reloading
+      - .:/app
+      # Prevent node_modules from being overwritten
+      - /app/node_modules
+      # Mount memory images folder
+      - ./assets/images/memmory:/app/assets/images/memmory
+    environment:
+      - NODE_ENV=development
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
+      - CHOKIDAR_USEPOLLING=true
+    command: npm start
+    networks:
+      - memmorystorage-network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  # Optional: Web-only development server
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memmorystorage-web
+    ports:
+      - "3000:19006"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+    command: npm run web
+    networks:
+      - memmorystorage-network
+    profiles:
+      - web-only
+    restart: unless-stopped
+
+networks:
+  memmorystorage-network:
+    driver: bridge
+
+volumes:
+  node_modules:
