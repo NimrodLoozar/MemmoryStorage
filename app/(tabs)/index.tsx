@@ -41,23 +41,31 @@ export default function HomeScreen() {
       console.log('=== LOADING AUTH STATE ===');
       
       const savedAuthState = await AsyncStorage.getItem('isLoggedIn');
-      const savedImages = await AsyncStorage.getItem('uploadedImages');
-      
       console.log('Saved auth state:', savedAuthState);
-      console.log('Saved images from AsyncStorage:', savedImages);
       
       if (savedAuthState === 'true') {
         console.log('Setting logged in to true');
         setIsLoggedIn(true);
       }
       
-      if (savedImages) {
-        const parsedImages = JSON.parse(savedImages);
-        console.log('Parsed uploaded images:', parsedImages);
-        console.log('Number of uploaded images:', parsedImages.length);
-        
-        setUploadedImages(parsedImages);
-        const combinedImages = [...memoryImages, ...parsedImages];
+      // Load from both AsyncStorage (small images) and IndexedDB (large images)
+      const [asyncStorageImages, indexedDBImages] = await Promise.all([
+        AsyncStorage.getItem('uploadedImages').then(data => 
+          data ? JSON.parse(data) : []
+        ).catch(() => []),
+        Platform.OS === 'web' ? loadImagesFromIndexedDB() : Promise.resolve([])
+      ]);
+      
+      console.log('AsyncStorage images:', asyncStorageImages.length);
+      console.log('IndexedDB images:', indexedDBImages.length);
+      
+      // Combine all uploaded images
+      const allUploadedImages = [...asyncStorageImages, ...indexedDBImages];
+      console.log('Total uploaded images:', allUploadedImages.length);
+      
+      if (allUploadedImages.length > 0) {
+        setUploadedImages(allUploadedImages);
+        const combinedImages = [...memoryImages, ...allUploadedImages];
         console.log('Combined images (memory + uploaded):', combinedImages.length);
         setAllImages(combinedImages);
       } else {
@@ -161,6 +169,90 @@ export default function HomeScreen() {
     } catch (error) {
       console.error('Image picker test error:', error);
       Alert.alert('Test Error', 'Image picker test failed: ' + String(error));
+    }
+  };
+
+  // IndexedDB helper functions for large image storage
+  const openImageDB = async () => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('MemoryStorageImages', 1);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains('images')) {
+          const store = db.createObjectStore('images', { keyPath: 'id' });
+          store.createIndex('filename', 'filename', { unique: false });
+        }
+      };
+    });
+  };
+
+  const saveImageToIndexedDB = async (imageData: any) => {
+    try {
+      const db = await openImageDB();
+      const transaction = db.transaction(['images'], 'readwrite');
+      const store = transaction.objectStore('images');
+      
+      const imageRecord = {
+        id: imageData.filename,
+        ...imageData,
+        savedAt: Date.now()
+      };
+      
+      await new Promise<void>((resolve, reject) => {
+        const request = store.put(imageRecord);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      
+      console.log('Image saved to IndexedDB:', imageData.filename);
+      return true;
+    } catch (error) {
+      console.error('IndexedDB save error:', error);
+      return false;
+    }
+  };
+
+  const loadImagesFromIndexedDB = async () => {
+    try {
+      const db = await openImageDB();
+      const transaction = db.transaction(['images'], 'readonly');
+      const store = transaction.objectStore('images');
+      
+      return new Promise<any[]>((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => {
+          console.log('Loaded images from IndexedDB:', request.result.length);
+          resolve(request.result);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.error('IndexedDB load error:', error);
+      return [];
+    }
+  };
+
+  const deleteImageFromIndexedDB = async (filename: string) => {
+    try {
+      const db = await openImageDB();
+      const transaction = db.transaction(['images'], 'readwrite');
+      const store = transaction.objectStore('images');
+      
+      await new Promise<void>((resolve, reject) => {
+        const request = store.delete(filename);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+      
+      console.log('Image deleted from IndexedDB:', filename);
+      return true;
+    } catch (error) {
+      console.error('IndexedDB delete error:', error);
+      return false;
     }
   };
 
@@ -387,7 +479,8 @@ export default function HomeScreen() {
         platform: Platform.OS,
         isPersistent: conversionSuccess,
         timestamp: Date.now(),
-        sessionOnly: false
+        sessionOnly: false,
+        storageType: 'pending' as 'asyncstorage' | 'indexeddb' | 'session' | 'pending'
       };
       
       console.log('New image object:', newImage);
@@ -405,51 +498,83 @@ export default function HomeScreen() {
       setUploadedImages(updatedUploadedImages);
       setAllImages(updatedAllImages);
       
-      console.log('=== SAVING TO ASYNCSTORAGE ===');
+      console.log('=== SAVING TO STORAGE ===');
       
-      // Only try to save to storage if we have a persistent URI
+      let storageSuccess = false;
+      const isLargeImage = finalUri.length > 500000; // 500KB threshold
+      
       if (conversionSuccess && finalUri.startsWith('data:')) {
-        // Check storage quota before saving
-        const dataString = JSON.stringify(updatedUploadedImages);
-        const dataSize = new Blob([dataString]).size;
-        console.log('Data size to save:', dataSize, 'bytes (~' + Math.round(dataSize/1024) + 'KB)');
-        
-        try {
-          await AsyncStorage.setItem('uploadedImages', dataString);
-          console.log('✅ AsyncStorage save successful!');
-        } catch (storageError: any) {
-          console.error('AsyncStorage error:', storageError);
+        if (Platform.OS === 'web' && isLargeImage) {
+          // Use IndexedDB for large images
+          console.log('Saving large image to IndexedDB...');
+          storageSuccess = await saveImageToIndexedDB(newImage);
           
-          if (storageError.name === 'QuotaExceededError') {
-            // Storage quota exceeded - keep image in session only
-            console.log('Storage full - keeping image in session only');
-            Alert.alert(
-              'Storage Full',
-              'Browser storage is full. Image uploaded but will only persist for this session. Consider deleting some uploaded images.',
-              [{ text: 'OK' }]
-            );
-            
-            // Mark as non-persistent
+          if (storageSuccess) {
+            console.log('✅ IndexedDB save successful!');
+            newImage.storageType = 'indexeddb';
+          } else {
+            console.log('❌ IndexedDB save failed, keeping in session only');
             newImage.isPersistent = false;
             newImage.sessionOnly = true;
-          } else {
-            throw storageError;
+            newImage.storageType = 'session';
+          }
+        } else {
+          // Use AsyncStorage for small images
+          console.log('Saving small image to AsyncStorage...');
+          const currentAsyncImages = uploadedImages.filter(img => img.storageType !== 'indexeddb');
+          const updatedAsyncImages = [...currentAsyncImages, newImage];
+          
+          try {
+            const dataString = JSON.stringify(updatedAsyncImages);
+            const dataSize = new Blob([dataString]).size;
+            console.log('AsyncStorage data size:', dataSize, 'bytes (~' + Math.round(dataSize/1024) + 'KB)');
+            
+            await AsyncStorage.setItem('uploadedImages', dataString);
+            console.log('✅ AsyncStorage save successful!');
+            storageSuccess = true;
+            newImage.storageType = 'asyncstorage';
+          } catch (storageError: any) {
+            console.error('AsyncStorage error:', storageError);
+            
+            if (storageError.name === 'QuotaExceededError') {
+              console.log('AsyncStorage full, trying IndexedDB...');
+              if (Platform.OS === 'web') {
+                storageSuccess = await saveImageToIndexedDB(newImage);
+                if (storageSuccess) {
+                  newImage.storageType = 'indexeddb';
+                } else {
+                  newImage.isPersistent = false;
+                  newImage.sessionOnly = true;
+                  newImage.storageType = 'session';
+                }
+              }
+            }
+            
+            if (!storageSuccess) {
+              Alert.alert(
+                'Storage Issues',
+                'Could not save image permanently. Image will work for this session only.',
+                [{ text: 'OK' }]
+              );
+            }
           }
         }
       } else {
-        console.log('Image not persistent - saving session-only reference');
-        // For non-persistent images, don't save to AsyncStorage
+        console.log('Image not persistent - keeping in session only');
         newImage.isPersistent = false;
         newImage.sessionOnly = true;
+        newImage.storageType = 'session';
       }
       
-      const persistenceMessage = Platform.OS === 'web'
-        ? (conversionSuccess 
-          ? '🎉 Image converted to Base64 and will persist across refreshes!'
-          : '⚠️ Using original URI - may not persist across refreshes')
+      const storageMessage = Platform.OS === 'web'
+        ? (newImage.storageType === 'indexeddb' 
+          ? '🎉 Large image saved to IndexedDB - will persist across refreshes!'
+          : newImage.storageType === 'asyncstorage'
+          ? '🎉 Image compressed and saved - will persist across refreshes!'
+          : '⚠️ Session-only image - will not persist across refreshes')
         : '🎉 Image saved to device storage!';
       
-      Alert.alert('Upload Success!', `Image uploaded successfully!\n\n${persistenceMessage}`);
+      Alert.alert('Upload Success!', `Image uploaded successfully!\n\n${storageMessage}`);
       console.log('=== SAVE UPLOADED IMAGE COMPLETED ===');
       
     } catch (error) {
@@ -475,19 +600,33 @@ export default function HomeScreen() {
       }
       
       if (imageToDelete?.isUploaded) {
-        // It's an uploaded image - remove from uploadedImages and AsyncStorage
+        // It's an uploaded image - remove from storage and state
         console.log('Deleting uploaded image');
+        console.log('Storage type:', imageToDelete.storageType);
+        
+        // Delete from appropriate storage
+        if (imageToDelete.storageType === 'indexeddb') {
+          const deleteSuccess = await deleteImageFromIndexedDB(imageToDelete.filename);
+          if (!deleteSuccess) {
+            console.warn('Failed to delete from IndexedDB');
+          }
+        } else if (imageToDelete.storageType === 'asyncstorage') {
+          // Update AsyncStorage (remove only AsyncStorage images)
+          const asyncStorageImages = uploadedImages.filter(img => 
+            img.storageType === 'asyncstorage' && img.filename !== imageToDelete.filename
+          );
+          await AsyncStorage.setItem('uploadedImages', JSON.stringify(asyncStorageImages));
+        }
+        
+        // Update state (remove from all arrays)
         const updatedUploadedImages = uploadedImages.filter(img => img.filename !== imageToDelete.filename);
         const updatedAllImages = allImages.filter((_, index) => index !== imageIndex);
         
-        console.log('Updated uploaded images:', updatedUploadedImages);
-        console.log('Updated all images:', updatedAllImages);
+        console.log('Updated uploaded images:', updatedUploadedImages.length);
+        console.log('Updated all images:', updatedAllImages.length);
         
         setUploadedImages(updatedUploadedImages);
         setAllImages(updatedAllImages);
-        
-        // Update AsyncStorage
-        await AsyncStorage.setItem('uploadedImages', JSON.stringify(updatedUploadedImages));
         
         Alert.alert('Success', 'Uploaded image deleted successfully!');
       } else {
@@ -991,7 +1130,8 @@ export default function HomeScreen() {
             }}>
               <ThemedText style={{ fontWeight: 'bold', color: 'green', textAlign: 'center', marginBottom: 10 }}>
                 ✅ LOGGED IN - Admin Mode Active ({Platform.OS} platform)
-                {Platform.OS === 'web' && '\n💾 Web: Images converted to Base64 for full persistence!'}
+                {Platform.OS === 'web' && '\n💾 Smart Storage: AsyncStorage + IndexedDB for large images!'}
+                {uploadedImages.length > 0 && `\n📊 ${uploadedImages.length} uploaded images stored`}
               </ThemedText>
               <ThemedView style={{
                 flexDirection: 'row',

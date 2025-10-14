@@ -47,25 +47,43 @@ docker/
 
 ## Critical Developer Workflows
 
+### Image Upload & Storage System
+
+- **Cross-Platform Architecture**: Native FileSystem (iOS/Android) + Web Browser Storage (IndexedDB + AsyncStorage)
+- **Smart Storage Selection**:
+  - Small images (< 500KB): AsyncStorage for fast access
+  - Large images (> 500KB): IndexedDB for unlimited capacity
+  - Fallback chain: AsyncStorage → IndexedDB → Session-only
+- **Advanced Compression**: Canvas-based processing with 600px max dimension, 0.5 JPEG quality
+- **Storage Persistence**:
+  - Native: expo-file-system permanent storage
+  - Web: IndexedDB (large images) + AsyncStorage (small images)
+- **Upload Process**: Image picker → Compression → Smart storage → State management → UI update
+- **Delete Process**: Identifies storage type → Removes from correct storage → Updates all state arrays
+
 ### Authentication System
 
 - **Login Page**: Dedicated `/login` route with professional form interface
 - **Default Password**: `admin123` (configurable in login.tsx)
 - **Session Persistence**: AsyncStorage maintains login state across app restarts
 - **Hidden Access**: Main heart click navigates to login when not authenticated
-- **Admin Features**: Upload functionality only visible when logged in
+- **Admin Features**: Upload functionality, delete buttons, and storage management only visible when logged in
 - **Logout**: Clean logout button appears in gallery when authenticated
+- **Cross-platform**: Works identically on web and native mobile platforms
 
 ### Image Management System
 
 - **Privacy Protected**: All memory images ignored by git via comprehensive .gitignore
 - **Auto-generation**: Images are auto-imported via `scripts/generateImageImports.js`
 - **Adding images**: Drop files in `assets/images/memmory/` then run `npm run generate-images`
-- **Upload system**: Admin can upload images directly through the app interface
+- **Cross-platform upload system**: Admin can upload images directly through the app interface
+- **Smart storage strategy**: Uses IndexedDB for large images, AsyncStorage for small images
+- **Advanced compression**: Canvas-based image compression with 600px max dimension and 0.5 JPEG quality
 - **Delete functionality**: Admin can delete uploaded images (memory images show info dialog)
 - **Tight borders**: Custom `ImageWithTightBorder` component provides pixel-perfect borders
 - **Orientation detection**: Automatic horizontal/vertical categorization with filtering
 - **Supported formats**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
+- **Web persistence**: Images survive browser refresh/restart using IndexedDB + AsyncStorage hybrid approach
 
 ### Development Commands
 
@@ -165,10 +183,13 @@ docker-compose restart # Restart after code changes
 
 - **Memory images auto-loader**: Never manually edit `utils/memoryImages.ts` - always use the generation script
 - **Privacy by design**: .gitignore prevents personal photos from being committed to git
-- **Upload system**: New images saved to AsyncStorage and integrated with existing gallery
-- **Delete system**: Remove uploaded images from AsyncStorage and update UI state
+- **Upload system**: Cross-platform image upload with smart storage management
+- **Storage types**: AsyncStorage (small), IndexedDB (large), Session-only (fallback)
+- **Compression system**: Canvas-based compression (600px max, 0.5 quality) for web storage
+- **Delete system**: Storage-aware deletion (AsyncStorage vs IndexedDB vs session)
 - **Tight borders**: ImageWithTightBorder calculates dimensions for pixel-perfect fitting
 - **Index mapping**: Complex logic to map filtered array indices to original allImages indices
+- **Persistence**: Images survive app/browser restarts through hybrid storage approach
 
 ### Authentication & Security
 
@@ -190,20 +211,34 @@ docker-compose restart # Restart after code changes
 
 ## Debugging & Development Patterns
 
+## Debugging & Development Patterns
+
+### Image Upload & Storage Debugging
+
+- **Storage Type Detection**: Console logs show which storage method is used (AsyncStorage/IndexedDB/Session)
+- **Compression Monitoring**: Logs show original vs compressed image dimensions and file sizes
+- **Storage Quota Management**: Smart fallback when storage limits are reached
+- **Cross-Platform Testing**: Different storage strategies for web vs native platforms
+- **Error Recovery**: Graceful degradation when storage operations fail
+
 ### Image Deletion Debugging
 
 - **Index Validation**: Always verify originalIndex is valid before deletion attempts
+- **Storage-Aware Deletion**: Different deletion logic for AsyncStorage vs IndexedDB images
 - **Console Logging**: Comprehensive logging for button clicks, index mapping, and deletion flow
 - **Error Handling**: Try-catch blocks around delete operations with user feedback
 - **State Management**: Proper updates to both uploadedImages and allImages arrays
-- **AsyncStorage Sync**: Ensure persistent storage is updated after successful deletions
+- **Persistence Sync**: Ensure correct storage (AsyncStorage/IndexedDB) is updated after deletions
 
 ### Common Issues & Solutions
 
 - **Index Mapping**: Use `findIndex()` to properly map filtered array indices to original array
+- **Storage Quota Exceeded**: Implement IndexedDB fallback for large images, AsyncStorage for small
 - **Touch Events**: Ensure delete buttons have proper z-index and stopPropagation
 - **State Updates**: Update all related state arrays when adding/removing images
-- **Error Boundaries**: Wrap delete operations in try-catch for graceful error handling
+- **Cross-Platform Storage**: Web uses IndexedDB+AsyncStorage, native uses FileSystem
+- **Error Boundaries**: Wrap storage operations in try-catch for graceful error handling
+- **Storage Type Tracking**: Track which storage method was used for each image for proper deletion
 - **Debug Visibility**: Use large, contrasted buttons and comprehensive logging for debugging
 
 ## Performance Considerations
@@ -213,4 +248,66 @@ docker-compose restart # Restart after code changes
 - **FlatList optimization**: Implement `getItemLayout` for known item dimensions
 - **Animation performance**: Use `useNativeDriver: true` for transform animations
 - **Responsive updates**: Debounce screen dimension changes to avoid excessive re-renders
+- **Storage optimization**: Smart storage selection (AsyncStorage vs IndexedDB) based on image size
+- **Compression efficiency**: Canvas-based compression reduces storage usage by 80-90%
+- **Memory management**: Proper cleanup of object URLs and canvas contexts
 - **Docker optimization**: Volume mounting for development, proper layer caching for builds
+
+## Advanced Storage System
+
+### Multi-Tier Storage Architecture
+
+Memory Storage implements a sophisticated multi-tier storage system for optimal performance and capacity:
+
+#### **Native Platforms (iOS/Android)**
+
+- **Primary Storage**: expo-file-system for permanent file storage
+- **Capacity**: Limited by device storage space
+- **Persistence**: Full persistence across app restarts
+- **Performance**: Direct file system access for optimal speed
+
+#### **Web Platform**
+
+- **Tier 1 - AsyncStorage**: Small images (< 500KB) for fast access
+- **Tier 2 - IndexedDB**: Large images (> 500KB) for unlimited capacity
+- **Tier 3 - Session**: Fallback for storage failures (temporary)
+- **Capacity**: AsyncStorage (~5-10MB), IndexedDB (~100MB-1GB+)
+- **Persistence**: Both AsyncStorage and IndexedDB survive browser restarts
+
+### Storage Selection Logic
+
+```typescript
+// Storage decision flow
+if (Platform.OS === 'web') {
+  if (imageSize < 500KB) {
+    // Use AsyncStorage for fast access
+    saveToAsyncStorage(compressedImage);
+  } else {
+    // Use IndexedDB for large capacity
+    saveToIndexedDB(compressedImage);
+  }
+} else {
+  // Native: Use FileSystem
+  saveToFileSystem(originalImage);
+}
+```
+
+### Image Processing Pipeline
+
+1. **Image Selection**: expo-image-picker with permission handling
+2. **Platform Detection**: Determine optimal storage strategy
+3. **Compression**: Canvas-based compression (600px max, 0.5 quality)
+4. **Storage Assignment**: Route to appropriate storage tier
+5. **State Management**: Update React state and UI
+6. **Persistence**: Save metadata and image data
+7. **Error Handling**: Graceful fallbacks and user feedback
+
+### Storage Management Functions
+
+- **`openImageDB()`**: Initialize IndexedDB connection
+- **`saveImageToIndexedDB()`**: Store large images in IndexedDB
+- **`loadImagesFromIndexedDB()`**: Retrieve images from IndexedDB
+- **`deleteImageFromIndexedDB()`**: Remove images from IndexedDB
+- **Smart cleanup**: Automatic garbage collection and quota management
+
+## Debugging & Development Patterns
