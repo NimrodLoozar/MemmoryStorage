@@ -62,6 +62,7 @@ docker/
 - **Auto-generation**: Images are auto-imported via `scripts/generateImageImports.js`
 - **Adding images**: Drop files in `assets/images/memmory/` then run `npm run generate-images`
 - **Upload system**: Admin can upload images directly through the app interface
+- **Delete functionality**: Admin can delete uploaded images (memory images show info dialog)
 - **Tight borders**: Custom `ImageWithTightBorder` component provides pixel-perfect borders
 - **Orientation detection**: Automatic horizontal/vertical categorization with filtering
 - **Supported formats**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
@@ -113,6 +114,9 @@ docker-compose restart # Restart after code changes
 - **Dynamic filtering**: Filter buttons show/hide images by orientation with SVG icons
 - **Responsive sizing**: Different container/image styles per orientation and screen size
 - **Upload integration**: Admin uploaded images seamlessly integrate with existing gallery
+- **Delete buttons**: Red delete buttons (50x50px) appear on images when logged in
+- **Smart deletion**: Uploaded images deleted completely, memory images show instructions
+- **Index management**: Complex originalIndex calculation for filtered vs all images arrays
 - **FlatList navigation**: Horizontal scrolling with pagination, dot indicators, and desktop buttons
 - **Screen adaptation**: Navigation changes between mobile (swipe) and desktop (buttons)
 
@@ -162,7 +166,9 @@ docker-compose restart # Restart after code changes
 - **Memory images auto-loader**: Never manually edit `utils/memoryImages.ts` - always use the generation script
 - **Privacy by design**: .gitignore prevents personal photos from being committed to git
 - **Upload system**: New images saved to AsyncStorage and integrated with existing gallery
+- **Delete system**: Remove uploaded images from AsyncStorage and update UI state
 - **Tight borders**: ImageWithTightBorder calculates dimensions for pixel-perfect fitting
+- **Index mapping**: Complex logic to map filtered array indices to original allImages indices
 
 ### Authentication & Security
 
@@ -170,14 +176,35 @@ docker-compose restart # Restart after code changes
 - **Session persistence**: Login state survives app restarts and refreshes
 - **Default credentials**: admin123 password (configurable in login.tsx)
 - **Clean logout**: Logout button only appears when authenticated
+- **Admin features**: Upload and delete functionality only visible when logged in
 
 ### UI/UX Patterns
 
 - **Challenge timing**: Popup heart requires 15 clicks in 5 seconds with visual progress
 - **Main heart**: Single click navigation to login/secret page based on auth state
+- **Delete buttons**: Large red circles (50x50px) with white borders for visibility
+- **Admin indicators**: Green debug box shows login status during development
 - **Theme consistency**: Dark/light theme handled automatically via Expo's theme system
 - **Platform detection**: Use `Platform.select()` for platform-specific styles, `isLargeScreen` for responsive behavior
 - **Error handling**: Images include fallback sources and error logging for debugging
+
+## Debugging & Development Patterns
+
+### Image Deletion Debugging
+
+- **Index Validation**: Always verify originalIndex is valid before deletion attempts
+- **Console Logging**: Comprehensive logging for button clicks, index mapping, and deletion flow
+- **Error Handling**: Try-catch blocks around delete operations with user feedback
+- **State Management**: Proper updates to both uploadedImages and allImages arrays
+- **AsyncStorage Sync**: Ensure persistent storage is updated after successful deletions
+
+### Common Issues & Solutions
+
+- **Index Mapping**: Use `findIndex()` to properly map filtered array indices to original array
+- **Touch Events**: Ensure delete buttons have proper z-index and stopPropagation
+- **State Updates**: Update all related state arrays when adding/removing images
+- **Error Boundaries**: Wrap delete operations in try-catch for graceful error handling
+- **Debug Visibility**: Use large, contrasted buttons and comprehensive logging for debugging
 
 ## Performance Considerations
 

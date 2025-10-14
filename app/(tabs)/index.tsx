@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Dimensions, FlatList, Modal, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, FlatList, Modal, Platform, TouchableOpacity, View } from 'react-native';
 
 import { AnimatedHeart } from '@/components/AnimatedHeart';
 import { ImageWithTightBorder } from '@/components/ImageWithTightBorder';
@@ -37,20 +38,34 @@ export default function HomeScreen() {
   // Authentication functions
   const loadAuthState = async () => {
     try {
+      console.log('=== LOADING AUTH STATE ===');
+      
       const savedAuthState = await AsyncStorage.getItem('isLoggedIn');
       const savedImages = await AsyncStorage.getItem('uploadedImages');
       
+      console.log('Saved auth state:', savedAuthState);
+      console.log('Saved images from AsyncStorage:', savedImages);
+      
       if (savedAuthState === 'true') {
+        console.log('Setting logged in to true');
         setIsLoggedIn(true);
       }
       
       if (savedImages) {
         const parsedImages = JSON.parse(savedImages);
+        console.log('Parsed uploaded images:', parsedImages);
+        console.log('Number of uploaded images:', parsedImages.length);
+        
         setUploadedImages(parsedImages);
-        setAllImages([...memoryImages, ...parsedImages]);
+        const combinedImages = [...memoryImages, ...parsedImages];
+        console.log('Combined images (memory + uploaded):', combinedImages.length);
+        setAllImages(combinedImages);
+      } else {
+        console.log('No saved images found, using only memory images');
+        setAllImages(memoryImages);
       }
     } catch (error) {
-      console.log('Error loading auth state:', error);
+      console.error('Error loading auth state:', error);
     }
   };
   
@@ -64,56 +79,475 @@ export default function HomeScreen() {
     setIsLoggedIn(false);
   };
   
+  // Simple test for just adding an image to state without file operations
+  const testSimpleAdd = async () => {
+    try {
+      console.log('=== TESTING SIMPLE ADD ===');
+      
+      // Create a fake image object to test state management
+      const fakeImage = {
+        uri: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzAwZmYwMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCI+VEVTVCE8L3RleHQ+PC9zdmc+',
+        width: 100,
+        height: 100,
+        filename: `test_${Date.now()}.svg`,
+        isUploaded: true,
+        originalUri: 'test://fake',
+        platform: Platform.OS,
+        isPersistent: true
+      };
+      
+      console.log('Creating fake image:', fakeImage);
+      
+      const updatedUploadedImages = [...uploadedImages, fakeImage];
+      const updatedAllImages = [...allImages, fakeImage];
+      
+      console.log('Before state update - uploadedImages length:', uploadedImages.length);
+      console.log('Before state update - allImages length:', allImages.length);
+      
+      setUploadedImages(updatedUploadedImages);
+      setAllImages(updatedAllImages);
+      
+      console.log('After state update - updatedUploadedImages length:', updatedUploadedImages.length);
+      console.log('After state update - updatedAllImages length:', updatedAllImages.length);
+      
+      // Save to AsyncStorage
+      await AsyncStorage.setItem('uploadedImages', JSON.stringify(updatedUploadedImages));
+      console.log('Saved to AsyncStorage successfully');
+      
+      Alert.alert('Test Success', `Added test image! Total uploaded: ${updatedUploadedImages.length}`);
+      
+    } catch (error) {
+      console.error('Simple add test error:', error);
+      Alert.alert('Test Error', 'Simple add test failed: ' + String(error));
+    }
+  };
+
+  // Simple test for image picker only
+  const testImagePicker = async () => {
+    try {
+      console.log('=== TESTING IMAGE PICKER ONLY ===');
+      
+      // Test permission request
+      console.log('Requesting permissions...');
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('Permission status:', status);
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Camera roll permission was denied');
+        return;
+      }
+      
+      Alert.alert('Permission Success', 'Camera roll permission granted! Now opening image picker...');
+      
+      // Test image picker launch
+      console.log('Launching image picker...');
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false, // Simplified - no editing
+        quality: 1, // Simplified - full quality
+      });
+      
+      console.log('Image picker result:', result);
+      
+      if (result.canceled) {
+        Alert.alert('Canceled', 'Image picker was canceled');
+      } else if (result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        Alert.alert('Success!', `Image selected: ${asset.uri}\nSize: ${asset.width}x${asset.height}`);
+      } else {
+        Alert.alert('Error', 'No image was selected');
+      }
+      
+    } catch (error) {
+      console.error('Image picker test error:', error);
+      Alert.alert('Test Error', 'Image picker test failed: ' + String(error));
+    }
+  };
+
+  // Test function to verify basic functionality
+  const testFunction = () => {
+    console.log('=== TEST FUNCTION CALLED ===');
+    console.log('Platform:', Platform.OS);
+    console.log('FileSystem available:', !!FileSystem);
+    console.log('ImagePicker available:', !!ImagePicker);
+    console.log('AsyncStorage available:', !!AsyncStorage);
+    
+    const platformInfo = Platform.OS === 'web' 
+      ? 'Web platform - FileSystem limited, using browser storage'
+      : 'Native platform - Full FileSystem available';
+    
+    Alert.alert('Test Results', `All imports working!\n\nPlatform: ${Platform.OS}\n${platformInfo}`);
+  };
+
   // Image upload functions
   const pickImage = async () => {
     try {
+      console.log('=== PICK IMAGE STARTED ===');
+      
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('Permission status:', status);
+      
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
         return;
       }
 
+      console.log('Launching image library...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      console.log('Image picker result:', result);
+      console.log('Result canceled:', result.canceled);
+      console.log('Result assets:', result.assets);
+      console.log('Assets length:', result.assets?.length);
+      console.log('First asset:', result.assets?.[0]);
+
+      if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
+        console.log('=== ASSET SELECTED - PROCEEDING TO SAVE ===');
+        console.log('Selected asset:', asset);
+        console.log('Asset URI:', asset.uri);
+        console.log('Asset dimensions:', asset.width, 'x', asset.height);
+        
+        console.log('About to call saveUploadedImage...');
         await saveUploadedImage(asset);
+        console.log('saveUploadedImage call completed');
+      } else {
+        console.log('=== CONDITION CHECK FAILED ===');
+        console.log('Canceled:', result.canceled);
+        console.log('Has assets:', !!result.assets);
+        console.log('Has first asset:', !!result.assets?.[0]);
+        console.log('Image picker was canceled or no asset selected');
       }
     } catch (error) {
-      console.log('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
   
   const saveUploadedImage = async (asset: any) => {
     try {
-      const filename = `uploaded_${Date.now()}.${asset.uri.split('.').pop()}`;
+      console.log('=== SAVE UPLOADED IMAGE STARTED ===');
+      console.log('Saving uploaded image:', asset);
+      console.log('Platform:', Platform.OS);
+      
+      // Get file extension safely
+      const uriParts = asset.uri.split('.');
+      const extension = uriParts.length > 1 ? uriParts[uriParts.length - 1] : 'jpg';
+      const filename = `uploaded_${Date.now()}.${extension}`;
+      
+      console.log('Generated filename:', filename);
+      
+      let finalUri = asset.uri;
+      let conversionSuccess = false;
+      
+      if (Platform.OS === 'web') {
+        console.log('=== WEB PLATFORM PROCESSING ===');
+        console.log('Original asset URI:', asset.uri);
+        
+        // For web, try to convert to base64 with compression for quota management
+        try {
+          console.log('Attempting Base64 conversion with compression...');
+          
+          // Fetch the image
+          const response = await fetch(asset.uri);
+          const blob = await response.blob();
+          
+          // Create compressed version using canvas
+          const base64Result = await new Promise<string>((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = document.createElement('img') as HTMLImageElement;
+            
+            img.onload = () => {
+              try {
+                // Calculate compressed dimensions (max 600px width/height for smaller files)
+                const maxSize = 600;
+                let { naturalWidth: width, naturalHeight: height } = img;
+                
+                if (width > maxSize || height > maxSize) {
+                  if (width > height) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                  } else {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                  }
+                }
+                
+                console.log(`Compressing image from ${img.naturalWidth}x${img.naturalHeight} to ${Math.round(width)}x${Math.round(height)}`);
+                
+                canvas.width = width;
+                canvas.height = height;
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                // Convert to base64 with heavy compression (0.5 quality)
+                const dataURL = canvas.toDataURL('image/jpeg', 0.5);
+                console.log('Compression successful, data URL length:', dataURL.length);
+                
+                // Clean up
+                URL.revokeObjectURL(img.src);
+                resolve(dataURL);
+              } catch (canvasError) {
+                console.error('Canvas compression error:', canvasError);
+                reject(canvasError);
+              }
+            };
+            
+            img.onerror = (error) => {
+              console.error('Image load error:', error);
+              reject(error);
+            };
+            
+            // Create object URL from blob for cross-origin safety
+            const objectURL = URL.createObjectURL(blob);
+            img.src = objectURL;
+          });
+          
+          finalUri = base64Result;
+          conversionSuccess = true;
+          console.log('✅ Compressed Base64 conversion successful!');
+          
+        } catch (conversionError) {
+          console.error('Base64 conversion failed:', conversionError);
+          console.log('📝 Attempting fallback with direct FileReader...');
+          
+          // Fallback: try direct FileReader without compression
+          try {
+            const response = await fetch(asset.uri);
+            const blob = await response.blob();
+            
+            // If original image is too large, skip storage and just show in UI
+            if (blob.size > 1024 * 1024) { // 1MB limit
+              console.log('Image too large for storage, using original URI for session only');
+              finalUri = asset.uri;
+              conversionSuccess = false;
+            } else {
+              const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              finalUri = base64;
+              conversionSuccess = true;
+            }
+          } catch (fallbackError) {
+            console.error('Fallback conversion failed:', fallbackError);
+            finalUri = asset.uri;
+            conversionSuccess = false;
+          }
+        }
+      } else {
+        console.log('=== NATIVE PLATFORM PROCESSING ===');
+        // Native platform FileSystem logic here
+        try {
+          const uploadDir = `${FileSystem.documentDirectory}uploaded_images/`;
+          console.log('Upload directory path:', uploadDir);
+          
+          const dirInfo = await FileSystem.getInfoAsync(uploadDir);
+          if (!dirInfo.exists) {
+            console.log('Creating upload directory...');
+            await FileSystem.makeDirectoryAsync(uploadDir, { intermediates: true });
+          }
+          
+          const permanentUri = `${uploadDir}${filename}`;
+          await FileSystem.copyAsync({ from: asset.uri, to: permanentUri });
+          
+          const fileInfo = await FileSystem.getInfoAsync(permanentUri);
+          if (!fileInfo.exists) {
+            throw new Error('Failed to copy image to permanent storage');
+          }
+          
+          finalUri = permanentUri;
+          conversionSuccess = true;
+          console.log('✅ FileSystem storage successful!');
+          
+        } catch (fsError) {
+          console.error('FileSystem error:', fsError);
+          finalUri = asset.uri;
+          conversionSuccess = false;
+        }
+      }
+      
+      console.log('=== CREATING IMAGE OBJECT ===');
+      console.log('Final URI type:', finalUri.startsWith('data:') ? 'Base64 Data URL' : 'Regular URI');
+      console.log('Conversion success:', conversionSuccess);
       
       const newImage = {
-        uri: asset.uri, // Use the original URI directly
+        uri: finalUri,
         width: asset.width,
         height: asset.height,
         filename: filename,
-        isUploaded: true
+        isUploaded: true,
+        originalUri: asset.uri,
+        platform: Platform.OS,
+        isPersistent: conversionSuccess,
+        timestamp: Date.now(),
+        sessionOnly: false
       };
+      
+      console.log('New image object:', newImage);
+      
+      console.log('=== UPDATING STATE ===');
+      console.log('Current uploadedImages length:', uploadedImages.length);
+      console.log('Current allImages length:', allImages.length);
       
       const updatedUploadedImages = [...uploadedImages, newImage];
       const updatedAllImages = [...allImages, newImage];
       
+      console.log('New uploadedImages length:', updatedUploadedImages.length);
+      console.log('New allImages length:', updatedAllImages.length);
+      
       setUploadedImages(updatedUploadedImages);
       setAllImages(updatedAllImages);
       
-      // Save to AsyncStorage
-      await AsyncStorage.setItem('uploadedImages', JSON.stringify(updatedUploadedImages));
+      console.log('=== SAVING TO ASYNCSTORAGE ===');
       
-      Alert.alert('Success', 'Image uploaded successfully!');
+      // Only try to save to storage if we have a persistent URI
+      if (conversionSuccess && finalUri.startsWith('data:')) {
+        // Check storage quota before saving
+        const dataString = JSON.stringify(updatedUploadedImages);
+        const dataSize = new Blob([dataString]).size;
+        console.log('Data size to save:', dataSize, 'bytes (~' + Math.round(dataSize/1024) + 'KB)');
+        
+        try {
+          await AsyncStorage.setItem('uploadedImages', dataString);
+          console.log('✅ AsyncStorage save successful!');
+        } catch (storageError: any) {
+          console.error('AsyncStorage error:', storageError);
+          
+          if (storageError.name === 'QuotaExceededError') {
+            // Storage quota exceeded - keep image in session only
+            console.log('Storage full - keeping image in session only');
+            Alert.alert(
+              'Storage Full',
+              'Browser storage is full. Image uploaded but will only persist for this session. Consider deleting some uploaded images.',
+              [{ text: 'OK' }]
+            );
+            
+            // Mark as non-persistent
+            newImage.isPersistent = false;
+            newImage.sessionOnly = true;
+          } else {
+            throw storageError;
+          }
+        }
+      } else {
+        console.log('Image not persistent - saving session-only reference');
+        // For non-persistent images, don't save to AsyncStorage
+        newImage.isPersistent = false;
+        newImage.sessionOnly = true;
+      }
+      
+      const persistenceMessage = Platform.OS === 'web'
+        ? (conversionSuccess 
+          ? '🎉 Image converted to Base64 and will persist across refreshes!'
+          : '⚠️ Using original URI - may not persist across refreshes')
+        : '🎉 Image saved to device storage!';
+      
+      Alert.alert('Upload Success!', `Image uploaded successfully!\n\n${persistenceMessage}`);
+      console.log('=== SAVE UPLOADED IMAGE COMPLETED ===');
+      
     } catch (error) {
-      console.log('Error saving image:', error);
-      Alert.alert('Error', 'Failed to save image');
+      console.error('=== SAVE UPLOADED IMAGE ERROR ===');
+      console.error('Error details:', error);
+      Alert.alert('Upload Error', 'Failed to save image: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+  
+  // Delete image function
+  const deleteImage = async (imageIndex: number) => {
+    console.log('Starting delete for imageIndex:', imageIndex);
+    console.log('AllImages length:', allImages.length);
+    console.log('AllImages:', allImages);
+    
+    try {
+      const imageToDelete = allImages[imageIndex];
+      console.log('Image to delete:', imageToDelete);
+      
+      if (!imageToDelete) {
+        Alert.alert('Error', 'Image not found');
+        return;
+      }
+      
+      if (imageToDelete?.isUploaded) {
+        // It's an uploaded image - remove from uploadedImages and AsyncStorage
+        console.log('Deleting uploaded image');
+        const updatedUploadedImages = uploadedImages.filter(img => img.filename !== imageToDelete.filename);
+        const updatedAllImages = allImages.filter((_, index) => index !== imageIndex);
+        
+        console.log('Updated uploaded images:', updatedUploadedImages);
+        console.log('Updated all images:', updatedAllImages);
+        
+        setUploadedImages(updatedUploadedImages);
+        setAllImages(updatedAllImages);
+        
+        // Update AsyncStorage
+        await AsyncStorage.setItem('uploadedImages', JSON.stringify(updatedUploadedImages));
+        
+        Alert.alert('Success', 'Uploaded image deleted successfully!');
+      } else {
+        // It's a memory image - can only hide it (since it's from the auto-generated list)
+        console.log('Trying to delete memory image');
+        Alert.alert(
+          'Memory Image', 
+          'Memory images cannot be permanently deleted. To remove them, delete the file from assets/images/memmory/ and run "npm run generate-images".',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      Alert.alert('Error', 'Failed to delete image: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+  
+  const confirmDelete = (imageIndex: number) => {
+    try {
+      console.log('=== CONFIRM DELETE CALLED ===');
+      console.log('Delete button clicked for image index:', imageIndex);
+      console.log('AllImages array:', allImages);
+      console.log('AllImages length:', allImages.length);
+      
+      const imageToDelete = allImages[imageIndex];
+      console.log('Image to delete:', imageToDelete);
+      
+      if (!imageToDelete) {
+        console.error('No image found at index:', imageIndex);
+        Alert.alert('Error', `No image found at index ${imageIndex}`);
+        return;
+      }
+      
+      const isUploaded = imageToDelete?.isUploaded;
+      console.log('Is uploaded image:', isUploaded);
+      
+      // TEMPORARY: Skip confirmation dialog and delete directly for testing
+      console.log('Skipping confirmation, deleting directly...');
+      deleteImage(imageIndex);
+      
+      /* 
+      Alert.alert(
+        'Delete Image',
+        `Are you sure you want to delete this ${isUploaded ? 'uploaded' : 'memory'} image? (Index: ${imageIndex})`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Delete', 
+            style: 'destructive',
+            onPress: () => {
+              console.log('User confirmed delete, calling deleteImage');
+              deleteImage(imageIndex);
+            }
+          }
+        ]
+      );
+      */
+    } catch (error) {
+      console.error('Error in confirmDelete:', error);
+      Alert.alert('Error', 'Confirm delete error: ' + String(error));
     }
   };
   
@@ -180,8 +614,18 @@ export default function HomeScreen() {
 
   // Render item for FlatList
   const renderImageItem = ({ item, index }: { item: any; index: number }) => {
-    const originalIndex = allImages.indexOf(item);
-    const imageOrientation = imageOrientations[originalIndex] || 'horizontal'; // Default to horizontal if not detected
+    // The index here is from the filtered array, but we need the original index from allImages
+    const originalIndex = allImages.findIndex(img => 
+      img === item || 
+      (img?.uri === item?.uri && img?.uri) || 
+      (img?.filename === item?.filename && img?.filename) ||
+      (img?.isUploaded === item?.isUploaded && JSON.stringify(img) === JSON.stringify(item))
+    );
+    
+    // Use the original index for orientation detection
+    const imageOrientation = imageOrientations[originalIndex] || 'horizontal';
+    
+    console.log('Rendering filtered image', index, 'originalIndex:', originalIndex, 'orientation:', imageOrientation);
     
     // Determine container style based on orientation
     const containerStyle = imageOrientation === 'horizontal' 
@@ -198,17 +642,80 @@ export default function HomeScreen() {
 
     console.log(`Rendering image ${index} (${imageOrientation}):`, item);
     return (
-      <ThemedView style={containerStyle}>
-        <ImageWithTightBorder
-          source={item.isUploaded ? { uri: item.uri } : (item || require('@/assets/images/sun_kastl.jpg'))} // Handle uploaded images
-          orientation={imageOrientation}
-          isLargeScreen={isLargeScreen}
-          containerStyle={{ flex: 1, width: '100%', height: '100%' }}
-          onImageLoad={(event) => {
-            console.log(`Image ${index} loaded successfully`);
-            handleImageLoad(originalIndex, event);
-          }}
-        />
+      <ThemedView style={[containerStyle, { position: 'relative', overflow: 'visible' }]}>
+        <ThemedView style={{ position: 'relative', flex: 1, width: '100%', height: '100%' }}>
+          <ImageWithTightBorder
+            source={item.isUploaded ? { uri: item.uri } : (item || require('@/assets/images/sun_kastl.jpg'))} // Handle uploaded images
+            orientation={imageOrientation}
+            isLargeScreen={isLargeScreen}
+            containerStyle={{ flex: 1, width: '100%', height: '100%' }}
+            onImageLoad={(event) => {
+              console.log(`Image ${index} loaded successfully`);
+              handleImageLoad(originalIndex, event);
+            }}
+          />
+          
+          {/* Delete button - only visible when logged in */}
+          {isLoggedIn && (
+            <TouchableOpacity
+              style={{
+                position: 'absolute',
+                top: 5,
+                right: 5,
+                backgroundColor: '#FF0000',
+                borderRadius: 25,
+                width: 50,
+                height: 50,
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.5,
+                shadowRadius: 4,
+                elevation: 8,
+                zIndex: 9999,
+                borderWidth: 3,
+                borderColor: 'white',
+              }}
+              onPress={(e) => {
+                e.stopPropagation();
+                console.log('=== DELETE BUTTON PRESSED ===');
+                console.log('Delete button clicked for image:', originalIndex, item);
+                
+                try {
+                  // Check if originalIndex is valid
+                  if (originalIndex === -1 || originalIndex === undefined || originalIndex === null) {
+                    console.error('Invalid originalIndex:', originalIndex);
+                    Alert.alert('Error', 'Could not find image to delete');
+                    return;
+                  }
+                  
+                  console.log('Original index is valid:', originalIndex);
+                  console.log('All images length:', allImages.length);
+                  console.log('Image at index:', allImages[originalIndex]);
+                  
+                  // Direct call to confirmDelete without intermediate alert
+                  confirmDelete(originalIndex);
+                  
+                } catch (error) {
+                  console.error('Error in delete button handler:', error);
+                  Alert.alert('Error', 'Delete button error: ' + String(error));
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <ThemedText style={{ 
+                color: 'white', 
+                fontSize: 20, 
+                fontWeight: 'bold',
+                textAlign: 'center',
+                lineHeight: 22
+              }}>
+                ✕
+              </ThemedText>
+            </TouchableOpacity>
+          )}
+        </ThemedView>
       </ThemedView>
     );
   };
@@ -475,35 +982,88 @@ export default function HomeScreen() {
           {/* Admin Controls - only show when logged in */}
           {isLoggedIn && (
             <ThemedView style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 15,
-              paddingHorizontal: 10,
+              backgroundColor: 'rgba(0, 255, 0, 0.1)',
+              padding: 10,
+              margin: 10,
+              borderRadius: 8,
+              borderWidth: 2,
+              borderColor: 'green',
             }}>
-              <TouchableOpacity 
-                style={[
-                  GalleryStyles.navButton,
-                  { backgroundColor: '#28a745', minWidth: 100 }
-                ]}
-                onPress={pickImage}
-              >
-                <ThemedText style={GalleryStyles.navButtonText}>
-                  📷 Upload Image
-                </ThemedText>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[
-                  GalleryStyles.navButton,
-                  { backgroundColor: '#dc3545', minWidth: 80 }
-                ]}
-                onPress={logout}
-              >
-                <ThemedText style={GalleryStyles.navButtonText}>
-                  🔐 Logout
-                </ThemedText>
-              </TouchableOpacity>
+              <ThemedText style={{ fontWeight: 'bold', color: 'green', textAlign: 'center', marginBottom: 10 }}>
+                ✅ LOGGED IN - Admin Mode Active ({Platform.OS} platform)
+                {Platform.OS === 'web' && '\n💾 Web: Images converted to Base64 for full persistence!'}
+              </ThemedText>
+              <ThemedView style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 10,
+              }}>
+                <TouchableOpacity 
+                  style={[
+                    GalleryStyles.navButton,
+                    { backgroundColor: '#007bff', minWidth: 80 }
+                  ]}
+                  onPress={testFunction}
+                >
+                  <ThemedText style={GalleryStyles.navButtonText}>
+                    🧪 Test
+                  </ThemedText>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    GalleryStyles.navButton,
+                    { backgroundColor: '#17a2b8', minWidth: 90 }
+                  ]}
+                  onPress={testSimpleAdd}
+                >
+                  <ThemedText style={GalleryStyles.navButtonText}>
+                    ➕ Test Add
+                  </ThemedText>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    GalleryStyles.navButton,
+                    { backgroundColor: '#ffc107', minWidth: 100 }
+                  ]}
+                  onPress={testImagePicker}
+                >
+                  <ThemedText style={[GalleryStyles.navButtonText, { color: '#000' }]}>
+                    📱 Test Picker
+                  </ThemedText>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    GalleryStyles.navButton,
+                    { backgroundColor: '#28a745', minWidth: 100 }
+                  ]}
+                  onPress={() => {
+                    console.log('=== UPLOAD BUTTON CLICKED ===');
+                    Alert.alert('Debug', 'Upload button clicked - calling pickImage function');
+                    pickImage();
+                  }}
+                >
+                  <ThemedText style={GalleryStyles.navButtonText}>
+                    📷 Upload Image
+                  </ThemedText>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    GalleryStyles.navButton,
+                    { backgroundColor: '#dc3545', minWidth: 80 }
+                  ]}
+                  onPress={logout}
+                >
+                  <ThemedText style={GalleryStyles.navButtonText}>
+                    🔐 Logout
+                  </ThemedText>
+                </TouchableOpacity>
+              </ThemedView>
             </ThemedView>
           )}
           
