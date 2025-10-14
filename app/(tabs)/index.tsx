@@ -21,14 +21,21 @@ type ImageFilter = 'all' | 'horizontal' | 'vertical';
 export default function HomeScreen() {
   console.log('Memory images loaded:', memoryImages.length, memoryImages);
   
+  // App state management
+  const [isLoading, setIsLoading] = useState(true);
+  const [showChallenge, setShowChallenge] = useState(false);
+  const [challengeCompleted, setChallengeCompleted] = useState(false);
+  
   // Authentication state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<any[]>([]);
   const [allImages, setAllImages] = useState(memoryImages);
   
-  const [showPopup, setShowPopup] = useState(true);
+  // Challenge state
   const [clickCount, setClickCount] = useState(0);
   const [firstClickTime, setFirstClickTime] = useState<number | null>(null);
+  
+  // Gallery state
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageFilter, setImageFilter] = useState<ImageFilter>('all');
   const [imageOrientations, setImageOrientations] = useState<('horizontal' | 'vertical')[]>([]);
@@ -707,6 +714,32 @@ export default function HomeScreen() {
     return () => subscription?.remove();
   }, []);
   
+  // Initialize app sequence
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Show loading for 2 seconds
+        console.log('Starting app initialization...');
+        
+        // Load auth state and images
+        await loadAuthState();
+        
+        // Simulate loading time for better UX
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('Loading complete, showing challenge...');
+        setIsLoading(false);
+        setShowChallenge(true);
+      } catch (error) {
+        console.error('App initialization error:', error);
+        setIsLoading(false);
+        setShowChallenge(true);
+      }
+    };
+    
+    initializeApp();
+  }, []);
+
   // Load authentication state on mount
   useEffect(() => {
     loadAuthState();
@@ -879,13 +912,14 @@ export default function HomeScreen() {
       setClickCount(newCount);
       
       if (newCount >= 15) {
-        // Target reached! Clear timeout and dismiss popup
+        // Target reached! Clear timeout and complete challenge
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
         }
         setClickCount(0);
         setFirstClickTime(null);
-        setShowPopup(false);
+        setChallengeCompleted(true);
+        setShowChallenge(false);
       }
     } else {
       // Outside 5 seconds window - restart
@@ -914,70 +948,102 @@ export default function HomeScreen() {
 
   return (
     <>
-      {/* Full Screen Popup Challenge */}
-      <Modal
-        visible={showPopup}
-        animationType="fade"
-        transparent={false}
-        statusBarTranslucent={true}
-      >
-        <ThemedView style={PopupStyles.popupContainer}>
-          <ThemedView style={PopupStyles.popupContent}>
-            <ThemedText type="title" style={PopupStyles.popupTitle}>
-              🔒 Welcome Challenge
-            </ThemedText>
-            
-            <ThemedText style={PopupStyles.popupSubtitle}>
-              Before you can access the Memory Storage app, prove your dedication by completing this challenge!
-            </ThemedText>
-            
-            <ThemedView style={PopupStyles.challengeBox}>
-              <ThemedText style={PopupStyles.challengeText}>
-                Click the heart below{'\n'}
-                <ThemedText style={PopupStyles.challengeHighlight}>15 times in 5 seconds</ThemedText>
+      {/* Loading Screen */}
+      {isLoading && (
+        <Modal
+          visible={true}
+          animationType="fade"
+          transparent={false}
+          statusBarTranslucent={true}
+        >
+          <ThemedView style={[PopupStyles.popupContainer, { backgroundColor: '#000' }]}>
+            <ThemedView style={PopupStyles.popupContent}>
+              <ThemedText type="title" style={[PopupStyles.popupTitle, { color: '#fff' }]}>
+                💾 Memory Storage
               </ThemedText>
               
-              <AnimatedHeart
-                size={60}
-                color="#FF1493"
-                onPress={handleHeartClick}
-                style={PopupStyles.popupHeartContainer}
-                activeOpacity={0.7}
-                clickCount={clickCount}
-              />
+              <ThemedText style={[PopupStyles.popupSubtitle, { color: '#ccc' }]}>
+                Loading your memories...
+              </ThemedText>
               
-              {clickCount > 0 && (
-                <ThemedView style={PopupStyles.progressContainer}>
-                  <ThemedText style={PopupStyles.progressText}>
-                    {clickCount}/15 clicks
-                  </ThemedText>
-                  {firstClickTime && (
-                    <ThemedText style={PopupStyles.timerText}>
-                      {((Date.now() - firstClickTime) / 1000).toFixed(1)}s / 5.0s
-                    </ThemedText>
-                  )}
-                  <ThemedView style={PopupStyles.progressBar}>
-                    <ThemedView 
-                      style={[
-                        PopupStyles.progressFill, 
-                        { width: `${(clickCount / 15) * 100}%` }
-                      ]} 
-                    />
-                  </ThemedView>
-                </ThemedView>
-              )}
-              
-              {clickCount === 0 && (
-                <ThemedText style={PopupStyles.startText}>
-                  Tap the heart 15 times in 5 seconds to start the challenge!
+              <ThemedView style={{ marginTop: 40, alignItems: 'center' }}>
+                <ThemedText style={{ color: '#fff', fontSize: 40 }}>⏳</ThemedText>
+                <ThemedText style={{ color: '#888', marginTop: 20 }}>
+                  Please wait while we prepare your gallery
                 </ThemedText>
-              )}
+              </ThemedView>
             </ThemedView>
           </ThemedView>
-        </ThemedView>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* Main App Content (only visible after popup is dismissed) */}
+      {/* Challenge Screen */}
+      {showChallenge && !challengeCompleted && (
+        <Modal
+          visible={true}
+          animationType="fade"
+          transparent={false}
+          statusBarTranslucent={true}
+        >
+          <ThemedView style={PopupStyles.popupContainer}>
+            <ThemedView style={PopupStyles.popupContent}>
+              <ThemedText type="title" style={PopupStyles.popupTitle}>
+                🔒 Welcome Challenge
+              </ThemedText>
+              
+              <ThemedText style={PopupStyles.popupSubtitle}>
+                Before you can access the Memory Storage app, prove your dedication by completing this challenge!
+              </ThemedText>
+              
+              <ThemedView style={PopupStyles.challengeBox}>
+                <ThemedText style={PopupStyles.challengeText}>
+                  Click the heart below{'\n'}
+                  <ThemedText style={PopupStyles.challengeHighlight}>15 times in 5 seconds</ThemedText>
+                </ThemedText>
+                
+                <AnimatedHeart
+                  size={60}
+                  color="#FF1493"
+                  onPress={handleHeartClick}
+                  style={PopupStyles.popupHeartContainer}
+                  activeOpacity={0.7}
+                  clickCount={clickCount}
+                />
+                
+                {clickCount > 0 && (
+                  <ThemedView style={PopupStyles.progressContainer}>
+                    <ThemedText style={PopupStyles.progressText}>
+                      {clickCount}/15 clicks
+                    </ThemedText>
+                    {firstClickTime && (
+                      <ThemedText style={PopupStyles.timerText}>
+                        {((Date.now() - firstClickTime) / 1000).toFixed(1)}s / 5.0s
+                      </ThemedText>
+                    )}
+                    <ThemedView style={PopupStyles.progressBar}>
+                      <ThemedView 
+                        style={[
+                          PopupStyles.progressFill, 
+                          { width: `${(clickCount / 15) * 100}%` }
+                        ]} 
+                      />
+                    </ThemedView>
+                  </ThemedView>
+                )}
+                
+                {clickCount === 0 && (
+                  <ThemedText style={PopupStyles.startText}>
+                    Tap the heart 15 times in 5 seconds to start the challenge!
+                  </ThemedText>
+                )}
+              </ThemedView>
+            </ThemedView>
+          </ThemedView>
+        </Modal>
+      )}
+
+      {/* Main App Content (only visible after challenge is completed) */}
+      {challengeCompleted && (
       <ParallaxScrollView
         headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
         headerImage={
@@ -1375,6 +1441,7 @@ export default function HomeScreen() {
           </ThemedText>
         </ThemedView>
       </ParallaxScrollView>
+      )}
     </>
   );
 }
