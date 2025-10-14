@@ -36,4 +36,25 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Memory Images - Don't push personal photos to git
+assets/images/memmory/
+assets/images/memmory/*
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+
+# Keep example images but ignore memory photos
+!assets/images/adaptive-icon.png
+!assets/images/favicon.png
+!assets/images/icon.png
+!assets/images/partial-react-logo.png
+!assets/images/react-logo.png
+!assets/images/react-logo@2x.png
+!assets/images/react-logo@3x.png
+!assets/images/splash-icon.png
+!assets/images/sun_kastl.jpg
+!assets/images/svgviewer-output.svg
+
 app-example

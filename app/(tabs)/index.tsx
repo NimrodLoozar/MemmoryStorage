@@ -26,9 +26,12 @@ export default function HomeScreen() {
   const [allImages, setAllImages] = useState(memoryImages);
   
   const [showPopup, setShowPopup] = useState(true);
+  const [clickCount, setClickCount] = useState(0);
+  const [firstClickTime, setFirstClickTime] = useState<number | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageFilter, setImageFilter] = useState<ImageFilter>('all');
   const [imageOrientations, setImageOrientations] = useState<('horizontal' | 'vertical')[]>([]);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
   
   // Authentication functions
@@ -211,7 +214,46 @@ export default function HomeScreen() {
   };
 
   const handleHeartClick = () => {
-    setShowPopup(false);
+    const currentTime = Date.now();
+    
+    if (clickCount === 0) {
+      // First click - start the timer
+      setFirstClickTime(currentTime);
+      setClickCount(1);
+      
+      // Reset after 5 seconds if target not reached
+      timeoutRef.current = setTimeout(() => {
+        setClickCount(0);
+        setFirstClickTime(null);
+      }, 5000);
+      
+    } else if (firstClickTime && currentTime - firstClickTime <= 5000) {
+      // Within 5 seconds window
+      const newCount = clickCount + 1;
+      setClickCount(newCount);
+      
+      if (newCount >= 15) {
+        // Target reached! Clear timeout and dismiss popup
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        setClickCount(0);
+        setFirstClickTime(null);
+        setShowPopup(false);
+      }
+    } else {
+      // Outside 5 seconds window - restart
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      setFirstClickTime(currentTime);
+      setClickCount(1);
+      
+      timeoutRef.current = setTimeout(() => {
+        setClickCount(0);
+        setFirstClickTime(null);
+      }, 5000);
+    }
   };
 
   const handleMainHeartClick = () => {
@@ -255,11 +297,35 @@ export default function HomeScreen() {
                 onPress={handleHeartClick}
                 style={PopupStyles.popupHeartContainer}
                 activeOpacity={0.7}
+                clickCount={clickCount}
               />
               
-              <ThemedText style={PopupStyles.startText}>
-                Tap the heart to enter the gallery!
-              </ThemedText>
+              {clickCount > 0 && (
+                <ThemedView style={PopupStyles.progressContainer}>
+                  <ThemedText style={PopupStyles.progressText}>
+                    {clickCount}/15 clicks
+                  </ThemedText>
+                  {firstClickTime && (
+                    <ThemedText style={PopupStyles.timerText}>
+                      {((Date.now() - firstClickTime) / 1000).toFixed(1)}s / 5.0s
+                    </ThemedText>
+                  )}
+                  <ThemedView style={PopupStyles.progressBar}>
+                    <ThemedView 
+                      style={[
+                        PopupStyles.progressFill, 
+                        { width: `${(clickCount / 15) * 100}%` }
+                      ]} 
+                    />
+                  </ThemedView>
+                </ThemedView>
+              )}
+              
+              {clickCount === 0 && (
+                <ThemedText style={PopupStyles.startText}>
+                  Tap the heart 15 times in 5 seconds to start the challenge!
+                </ThemedText>
+              )}
             </ThemedView>
           </ThemedView>
         </ThemedView>
@@ -295,18 +361,6 @@ export default function HomeScreen() {
     
             <ThemedText style={MainStyles.funFact}>
               Fun fact: You just performed 10 taps in 5 seconds. That's 2 taps per second! 🚀
-            </ThemedText>
-          </ThemedView>
-          
-          <ThemedView style={MainStyles.heartContainer}>
-            <AnimatedHeart
-              size={24}
-              color="#FF1493"
-              onPress={handleMainHeartClick}
-              activeOpacity={0.7}
-            />
-            <ThemedText style={MainStyles.heartHint}>
-              💖 {isLoggedIn ? 'Tap the heart to visit the secret page!' : 'Tap the heart to login for admin features!'}
             </ThemedText>
           </ThemedView>
         </ThemedView>
