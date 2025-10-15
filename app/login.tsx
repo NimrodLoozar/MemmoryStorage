@@ -1,5 +1,6 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { getAdminPassword } from '@/utils/environment';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -17,8 +18,10 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     
-    // Simple password check (you can make this more secure)
-    if (password === 'admin123') {
+    // Get admin password from environment variables with secure fallback
+    const adminPassword = getAdminPassword();
+    
+    if (password === adminPassword) {
       try {
         await AsyncStorage.setItem('isLoggedIn', 'true');
         Alert.alert('Success', 'Logged in successfully!', [
