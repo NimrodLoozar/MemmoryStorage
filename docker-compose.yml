@@ -26,12 +26,26 @@ services:
       - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
       - REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
       - CHOKIDAR_USEPOLLING=true
+      - NPM_CONFIG_UPDATE_NOTIFIER=false
+      - NPM_CONFIG_FUND=false
     command: npm start
     networks:
       - memmorystorage-network
     restart: unless-stopped
     stdin_open: true
     tty: true
+    # Security configurations
+    read_only: false  # Need write access for development
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    user: "1001:1001"  # Run as non-root user
 
   # Optional: Web-only development server
   web:
@@ -47,12 +61,25 @@ services:
     environment:
       - NODE_ENV=development
       - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - NPM_CONFIG_UPDATE_NOTIFIER=false
+      - NPM_CONFIG_FUND=false
     command: npm run web
     networks:
       - memmorystorage-network
     profiles:
       - web-only
     restart: unless-stopped
+    # Security configurations
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    user: "1001:1001"  # Run as non-root user
 
 networks:
   memmorystorage-network:
