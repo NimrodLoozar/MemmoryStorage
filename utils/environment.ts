@@ -51,11 +51,13 @@ export const getAdminPassword = (): string => {
 };
 
 /**
- * Log environment configuration (only in development)
+ * Log current environment configuration for debugging
  */
 export const logEnvironmentConfig = (): void => {
   if (isDevelopment()) {
     const config = getEnvironmentConfig();
+    // Note: Using console.log directly here as this is a development-only configuration utility
+    // and Logger would create circular dependency
     console.log('🔧 Environment Configuration:', {
       environment: config.environment,
       maxImageSize: config.maxImageSize,
