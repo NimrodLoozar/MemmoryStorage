@@ -441,26 +441,52 @@ export default function HomeScreen() {
       if (imageToDelete?.isUploaded) {
         // It's an uploaded image - remove from storage and state
 
-        // Delete from appropriate storage
+        // Delete from appropriate storage with proper error handling
         if (imageToDelete.storageType === 'indexeddb') {
           const deleteSuccess = await deleteImageFromIndexedDB(imageToDelete.filename);
           if (!deleteSuccess) {
-            Logger.warn('Failed to delete from IndexedDB');
+            Logger.error('Failed to delete from IndexedDB:', imageToDelete.filename);
+            Alert.alert('Error', 'Failed to delete image from storage');
+            return;
           }
         } else if (imageToDelete.storageType === 'asyncstorage') {
-          // Update AsyncStorage (remove only AsyncStorage images)
-          const asyncStorageImages = uploadedImages.filter(img => 
-            img.storageType === 'asyncstorage' && img.filename !== imageToDelete.filename
-          );
-          await AsyncStorage.setItem('uploadedImages', JSON.stringify(asyncStorageImages));
+          try {
+            // Update AsyncStorage (remove only AsyncStorage images)
+            const asyncStorageImages = uploadedImages.filter(img => 
+              img.storageType === 'asyncstorage' && img.filename !== imageToDelete.filename
+            );
+            await AsyncStorage.setItem('uploadedImages', JSON.stringify(asyncStorageImages));
+            Logger.info('Successfully updated AsyncStorage after deletion');
+          } catch (error) {
+            Logger.error('Failed to update AsyncStorage:', error);
+            Alert.alert('Error', 'Failed to update image storage');
+            return;
+          }
+        } else {
+          // Session-only storage, no persistent deletion needed
+          Logger.info('Deleting session-only image:', imageToDelete.filename);
         }
         
-        // Update state (remove from all arrays)
+        // FIXED: Update state with proper synchronization
         const updatedUploadedImages = uploadedImages.filter(img => img.filename !== imageToDelete.filename);
+        
+        // Remove from allImages and update orientations accordingly
         const updatedAllImages = allImages.filter((_, index) => index !== imageIndex);
-
+        const updatedImageOrientations = imageOrientations.filter((_, index) => index !== imageIndex);
+        
+        // Update all state atomically to prevent inconsistencies
         setUploadedImages(updatedUploadedImages);
         setAllImages(updatedAllImages);
+        setImageOrientations(updatedImageOrientations);
+        
+        // Reset current image index if it's out of bounds
+        setCurrentImageIndex(currentIndex => {
+          const maxIndex = updatedAllImages.length - 1;
+          if (currentIndex > maxIndex) {
+            return Math.max(0, maxIndex);
+          }
+          return currentIndex;
+        });
         
         Alert.alert('Success', 'Uploaded image deleted successfully!');
       } else {
@@ -480,36 +506,47 @@ export default function HomeScreen() {
   
   const confirmDelete = (imageIndex: number) => {
     try {
+      // Enhanced validation
+      if (imageIndex < 0 || imageIndex >= allImages.length) {
+        Logger.error('Image index out of bounds:', { imageIndex, allImagesLength: allImages.length });
+        Alert.alert('Error', 'Invalid image index. Please refresh the gallery.');
+        return;
+      }
 
       const imageToDelete = allImages[imageIndex];
 
       if (!imageToDelete) {
         Logger.error('No image found at index:', imageIndex);
-        Alert.alert('Error', `No image found at index ${imageIndex}`);
+        Alert.alert('Error', `No image found at index ${imageIndex}. Please refresh the gallery.`);
         return;
       }
       
       const isUploaded = imageToDelete?.isUploaded;
+      const imageType = isUploaded ? 'uploaded' : 'memory';
+      const storageInfo = isUploaded ? ` (${imageToDelete.storageType})` : '';
 
-      deleteImage(imageIndex);
-      
-      /* 
+      // Show confirmation dialog for better UX
       Alert.alert(
         'Delete Image',
-        `Are you sure you want to delete this ${isUploaded ? 'uploaded' : 'memory'} image? (Index: ${imageIndex})`,
+        `Are you sure you want to delete this ${imageType} image${storageInfo}?${
+          isUploaded ? '' : '\n\nNote: Memory images will only be hidden. To permanently remove them, delete from assets/images/memmory/ folder.'
+        }`,
         [
           { text: 'Cancel', style: 'cancel' },
           { 
             text: 'Delete', 
             style: 'destructive',
-            onPress: () => {
-
-              deleteImage(imageIndex);
+            onPress: async () => {
+              try {
+                await deleteImage(imageIndex);
+              } catch (error) {
+                Logger.error('Error during deletion:', error);
+                Alert.alert('Error', 'Failed to delete image: ' + String(error));
+              }
             }
           }
         ]
       );
-      */
     } catch (error) {
       Logger.error('Error in confirmDelete:', error);
       Alert.alert('Error', 'Confirm delete error: ' + String(error));
@@ -576,11 +613,13 @@ export default function HomeScreen() {
   };
 
   // Filter images based on orientation (now using allImages including uploaded ones)
-  const filteredImages = allImages.filter((image, index) => {
-    if (imageFilter === 'all') return true;
-    if (imageOrientations.length === 0) return true; // Show all if orientations not detected yet
-    return imageOrientations[index] === imageFilter;
-  });
+  const filteredImages = allImages
+    .map((image, originalIndex) => ({ ...image, originalIndex })) // Preserve original index
+    .filter((image, index) => {
+      if (imageFilter === 'all') return true;
+      if (imageOrientations.length === 0) return true; // Show all if orientations not detected yet
+      return imageOrientations[image.originalIndex] === imageFilter;
+    });
 
   // Calculate dynamic height based on current filter and screen size
   const getScrollViewHeight = () => {
@@ -603,13 +642,19 @@ export default function HomeScreen() {
 
   // Render item for FlatList
   const renderImageItem = ({ item, index }: { item: any; index: number }) => {
-    // The index here is from the filtered array, but we need the original index from allImages
-    const originalIndex = allImages.findIndex(img => 
-      img === item || 
-      (img?.uri === item?.uri && img?.uri) || 
-      (img?.filename === item?.filename && img?.filename) ||
-      (img?.isUploaded === item?.isUploaded && JSON.stringify(img) === JSON.stringify(item))
-    );
+    // FIXED: Use the originalIndex preserved during filtering
+    const originalIndex = item.originalIndex;
+    
+    // Validate that originalIndex exists
+    if (originalIndex === undefined || originalIndex < 0 || originalIndex >= allImages.length) {
+      Logger.error('Invalid originalIndex in renderImageItem', {
+        originalIndex,
+        filteredIndex: index,
+        allImagesLength: allImages.length,
+        item: { filename: item?.filename, uri: item?.uri }
+      });
+      return null; // Skip rendering this item
+    }
     
     // Use the original index for orientation detection
     const imageOrientation = imageOrientations[originalIndex] || 'horizontal';
@@ -665,16 +710,51 @@ export default function HomeScreen() {
               }}
               onPress={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
 
                 try {
-                  // Check if originalIndex is valid
+                  // Add haptic feedback for better user experience
+                  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+                    // Import needed for haptic feedback
+                    import('expo-haptics').then(Haptics => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    }).catch(() => {
+                      // Haptics not available, continue without it
+                    });
+                  }
+
+                  // Enhanced validation with better error messaging
                   if (originalIndex === -1 || originalIndex === undefined || originalIndex === null) {
-                    Logger.error('Invalid originalIndex:', originalIndex);
-                    Alert.alert('Error', 'Could not find image to delete');
+                    Logger.error('Invalid originalIndex:', { 
+                      originalIndex, 
+                      filteredIndex: index,
+                      itemFilename: item?.filename,
+                      allImagesLength: allImages.length 
+                    });
+                    Alert.alert('Error', 'Could not find image to delete. Please try refreshing the gallery.');
                     return;
                   }
 
-                  // Direct call to confirmDelete without intermediate alert
+                  // Ensure we're within bounds
+                  if (originalIndex >= allImages.length || originalIndex < 0) {
+                    Logger.error('originalIndex out of bounds:', { 
+                      originalIndex, 
+                      allImagesLength: allImages.length 
+                    });
+                    Alert.alert('Error', 'Image index is out of range. Please refresh the gallery.');
+                    return;
+                  }
+
+                  // Enhanced logging for debugging
+                  Logger.info('Delete button pressed:', {
+                    originalIndex,
+                    filteredIndex: index,
+                    filename: item?.filename,
+                    isUploaded: item?.isUploaded,
+                    storageType: item?.storageType
+                  });
+
+                  // Direct call to confirmDelete
                   confirmDelete(originalIndex);
                   
                 } catch (error) {
