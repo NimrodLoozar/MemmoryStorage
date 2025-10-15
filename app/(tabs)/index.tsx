@@ -3,7 +3,7 @@ import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Dimensions, FlatList, Modal, Platform, TouchableOpacity, View } from 'react-native';
 
 import { AnimatedHeart } from '@/components/AnimatedHeart';
@@ -17,6 +17,7 @@ import { UploadErrorBoundary } from '@/components/UploadErrorBoundary';
 import { GalleryStyles, MainStyles, PopupStyles } from '@/styles';
 import Logger from '@/utils/logger';
 import { memoryImages } from '@/utils/memoryImages';
+import { PERFORMANCE_CONFIG } from '@/utils/performanceOptimizer';
 
 type ImageFilter = 'all' | 'horizontal' | 'vertical';
 
@@ -614,20 +615,29 @@ export default function HomeScreen() {
     }
   };
 
-  // Filter images based on orientation (now using allImages including uploaded ones)
-  const filteredImages = allImages
-    .map((image, originalIndex) => ({ ...image, originalIndex })) // Preserve original index
-    .filter((image, index) => {
-      if (imageFilter === 'all') return true;
-      if (imageOrientations.length === 0) return true; // Show all if orientations not detected yet
-      return imageOrientations[image.originalIndex] === imageFilter;
-    });
+  // Performance optimized: Memoized filtered images to prevent unnecessary recalculations
+  const filteredImages = useMemo(() => {
+    return allImages
+      .map((image, originalIndex) => ({ ...image, originalIndex })) // Preserve original index
+      .filter((image, index) => {
+        if (imageFilter === 'all') return true;
+        if (imageOrientations.length === 0) return true; // Show all if orientations not detected yet
+        return imageOrientations[image.originalIndex] === imageFilter;
+      });
+  }, [allImages, imageFilter, imageOrientations]);
 
-  // Calculate dynamic height based on current filter and screen size
-  const getScrollViewHeight = () => {
+  // Performance optimized: Memoized image counts for filter buttons
+  const imageCounts = useMemo(() => {
+    const vertical = imageOrientations.filter(orientation => orientation === 'vertical').length;
+    const horizontal = imageOrientations.filter(orientation => orientation === 'horizontal').length;
+    return { vertical, horizontal, total: allImages.length };
+  }, [imageOrientations, allImages.length]);
+
+  // Performance optimized: Calculate dynamic height with useCallback
+  const getScrollViewHeight = useCallback(() => {
     // Further increased heights for bigger images with minimal spacing
     return isLargeScreen ? 620 : 540;
-  };
+  }, [isLargeScreen]);
 
   // Update current index when filter changes
   useEffect(() => {
@@ -636,11 +646,12 @@ export default function HomeScreen() {
   }, [imageFilter]);
 
   // Handle scroll events to update current image index
-  const handleScroll = (event: any) => {
+  // Performance optimized scroll handler
+  const handleScroll = useCallback((event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(contentOffsetX / imageItemWidth);
     setCurrentImageIndex(Math.max(0, Math.min(index, filteredImages.length - 1)));
-  };
+  }, [imageItemWidth, filteredImages.length]);
 
   // Render item for FlatList
   const renderImageItem = ({ item, index }: { item: any; index: number }) => {
@@ -1131,7 +1142,7 @@ export default function HomeScreen() {
                 GalleryStyles.filterButtonText,
                 imageFilter === 'all' && GalleryStyles.filterButtonTextActive
               ]}>
-                All ({allImages.length})
+                All ({imageCounts.total})
               </ThemedText>
             </TouchableOpacity>
             
@@ -1155,7 +1166,7 @@ export default function HomeScreen() {
                   GalleryStyles.filterButtonText,
                   imageFilter === 'horizontal' && GalleryStyles.filterButtonTextActive
                 ]}>
-                  Horizontal ({imageOrientations.filter(o => o === 'horizontal').length})
+                  Horizontal ({imageCounts.horizontal})
                 </ThemedText>
               </View>
             </TouchableOpacity>
@@ -1180,7 +1191,7 @@ export default function HomeScreen() {
                   GalleryStyles.filterButtonText,
                   imageFilter === 'vertical' && GalleryStyles.filterButtonTextActive
                 ]}>
-                  Vertical ({imageOrientations.filter(o => o === 'vertical').length})
+                  Vertical ({imageCounts.vertical})
                 </ThemedText>
               </View>
             </TouchableOpacity>
@@ -1242,11 +1253,20 @@ export default function HomeScreen() {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             onScroll={handleScroll}
-            scrollEventThrottle={16}
+            scrollEventThrottle={PERFORMANCE_CONFIG.FLATLIST.scrollEventThrottle}
             decelerationRate={isLargeScreen ? "normal" : "fast"}
             snapToInterval={imageItemWidth}
             snapToAlignment="start"
             disableIntervalMomentum={!isLargeScreen}
+            // Performance optimizations from PERFORMANCE_CONFIG
+            removeClippedSubviews={PERFORMANCE_CONFIG.FLATLIST.removeClippedSubviews}
+            maxToRenderPerBatch={PERFORMANCE_CONFIG.FLATLIST.maxToRenderPerBatch}
+            windowSize={PERFORMANCE_CONFIG.FLATLIST.windowSize}
+            initialNumToRender={PERFORMANCE_CONFIG.FLATLIST.initialNumToRender}
+            updateCellsBatchingPeriod={PERFORMANCE_CONFIG.FLATLIST.updateCellsBatchingPeriod}
+            legacyImplementation={PERFORMANCE_CONFIG.FLATLIST.legacyImplementation}
+            // Additional scroll optimizations
+            disableScrollViewPanResponder={true}
             style={[
               GalleryStyles.imageScrollView, 
               { height: getScrollViewHeight() }
