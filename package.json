@@ -9,7 +9,26 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "generate-images": "node ./scripts/generateImageImports.js"
+    "generate-images": "node ./scripts/generateImageImports.js",
+    "build": "eas build",
+    "build:development": "eas build --profile development",
+    "build:preview": "eas build --profile preview",
+    "build:production": "eas build --profile production",
+    "build:android": "eas build --platform android --profile production",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:web": "expo export:web --clear",
+    "preview": "eas build --profile preview",
+    "submit": "eas submit",
+    "submit:android": "eas submit --platform android",
+    "submit:ios": "eas submit --platform ios",
+    "update": "eas update",
+    "export": "expo export",
+    "export:web": "expo export:web --clear",
+    "prebuild": "expo prebuild --clean",
+    "prebuild:android": "expo prebuild --platform android --clean",
+    "prebuild:ios": "expo prebuild --platform ios --clean",
+    "analyze": "npx expo-bundle-analyzer",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
@@ -53,7 +72,13 @@
     "@types/react": "~19.0.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "@expo/cli": "latest",
+    "eas-cli": "latest",
+    "babel-plugin-transform-remove-console": "^6.9.4",
+    "babel-plugin-transform-inline-environment-variables": "^0.4.4",
+    "babel-plugin-transform-remove-undefined": "^0.5.0",
+    "@expo/bundle-analyzer": "latest"
   },
   "private": true
 }

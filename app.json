@@ -1,27 +1,67 @@
 {
   "expo": {
-    "name": "MemmoryStorage",
-    "slug": "MemmoryStorage",
+    "name": "Memory Storage",
+    "slug": "memory-storage",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "memmorystorage",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "privacy": "unlisted",
+    "platforms": ["ios", "android", "web"],
+    "description": "A personal memory photo gallery with interactive features and secure admin authentication.",
+    "keywords": ["photo", "gallery", "memory", "storage", "react-native", "expo"],
+    "primaryColor": "#007AFF",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff",
+      "imageWidth": 200
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.memmorystorage.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload and display personal memory photos.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos for your memory collection."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.memmorystorage.app",
+      "versionCode": 1,
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "build": {
+        "babel": {
+          "include": ["@expo/vector-icons"]
+        }
+      },
+      "meta": {
+        "name": "Memory Storage",
+        "description": "Personal memory photo gallery with interactive features",
+        "themeColor": "#007AFF"
+      }
     },
     "plugins": [
       "expo-router",
@@ -33,10 +73,21 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you upload personal memory images to your gallery.",
+          "cameraPermission": "The app accesses your camera to let you take photos for your memory collection."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": "1.0.0"
   }
 }

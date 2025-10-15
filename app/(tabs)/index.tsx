@@ -7,11 +7,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, FlatList, Modal, Platform, TouchableOpacity, View } from 'react-native';
 
 import { AnimatedHeart } from '@/components/AnimatedHeart';
+import { GalleryErrorBoundary } from '@/components/GalleryErrorBoundary';
 import { ImageWithTightBorder } from '@/components/ImageWithTightBorder';
 import OrientationIcon from '@/components/OrientationIcon';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { UploadErrorBoundary } from '@/components/UploadErrorBoundary';
 import { GalleryStyles, MainStyles, PopupStyles } from '@/styles';
 import Logger from '@/utils/logger';
 import { memoryImages } from '@/utils/memoryImages';
@@ -1074,44 +1076,46 @@ export default function HomeScreen() {
           
           {/* Admin Controls - only show when logged in */}
           {isLoggedIn && (
-            <ThemedView style={{
-              padding: 10,
-              margin: 10,
-              borderRadius: 8,
-              backgroundColor: 'rgba(0, 0, 0, 0.05)',
-            }}>
+            <UploadErrorBoundary>
               <ThemedView style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 10,
+                padding: 10,
+                margin: 10,
+                borderRadius: 8,
+                backgroundColor: 'rgba(0, 0, 0, 0.05)',
               }}>
-                <TouchableOpacity 
-                  style={[
-                    GalleryStyles.navButton,
-                    { backgroundColor: '#28a745', minWidth: 100 }
-                  ]}
-                  onPress={pickImage}
-                >
-                  <ThemedText style={GalleryStyles.navButtonText}>
-                    📷 Upload Image
-                  </ThemedText>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    GalleryStyles.navButton,
-                    { backgroundColor: '#dc3545', minWidth: 80 }
-                  ]}
-                  onPress={logout}
-                >
-                  <ThemedText style={GalleryStyles.navButtonText}>
-                    🔐 Logout
-                  </ThemedText>
-                </TouchableOpacity>
+                <ThemedView style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}>
+                  <TouchableOpacity 
+                    style={[
+                      GalleryStyles.navButton,
+                      { backgroundColor: '#28a745', minWidth: 100 }
+                    ]}
+                    onPress={pickImage}
+                  >
+                    <ThemedText style={GalleryStyles.navButtonText}>
+                      📷 Upload Image
+                    </ThemedText>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[
+                      GalleryStyles.navButton,
+                      { backgroundColor: '#dc3545', minWidth: 80 }
+                    ]}
+                    onPress={logout}
+                  >
+                    <ThemedText style={GalleryStyles.navButtonText}>
+                      🔐 Logout
+                    </ThemedText>
+                  </TouchableOpacity>
+                </ThemedView>
               </ThemedView>
-            </ThemedView>
+            </UploadErrorBoundary>
           )}
           
           {/* Filter buttons */}
@@ -1229,7 +1233,8 @@ export default function HomeScreen() {
             </ThemedView>
           )}
           
-          <FlatList
+          <GalleryErrorBoundary>
+            <FlatList
             ref={flatListRef}
             data={filteredImages}
             renderItem={renderImageItem}
@@ -1280,6 +1285,7 @@ export default function HomeScreen() {
               : "👆 Swipe left or right to browse • Tap dots to jump to image • Use orientation filters above"
             }
           </ThemedText>
+          </GalleryErrorBoundary>
         </ThemedView>
       </ParallaxScrollView>
       )}
