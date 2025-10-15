@@ -4,6 +4,29 @@
 
 Memory Storage is an Expo-based React Native app that displays personal memory photos with interactive features, gamified challenges, cross-platform styling, and secure admin authentication. This is a single-user photo gallery with unique UX patterns and hidden admin capabilities.
 
+**Current Status**: 65% Production Ready - See PRODUCTION_READINESS_PLAN.md for complete production checklist
+**Critical Issues**: Delete function not working, security vulnerabilities, debug code in production
+
+## Production Readiness Context
+
+### **CRITICAL FIXES NEEDED**:
+
+1. **Delete Function Issues**: Delete buttons not responding properly, index mapping problems
+2. **Security Vulnerabilities**: Hardcoded passwords, Docker vulnerabilities, missing environment variables
+3. **Debug Code**: 50+ console.log statements need removal before production
+4. **Error Handling**: No error boundaries, generic error messages
+5. **Production Config**: Missing build configuration and crash reporting
+
+### **Known Issues to Address**:
+
+- Delete functionality broken (buttons don't respond to touch events)
+- Index mapping issues between filtered and all images arrays
+- Storage-aware deletion logic needs implementation
+- State synchronization problems after deletion
+- Touch event conflicts with image scrolling
+
+Refer to PRODUCTION_READINESS_PLAN.md for the complete 16-task production preparation checklist.
+
 ## Architecture & Key Components
 
 ### Core Architecture
@@ -59,7 +82,12 @@ docker/
   - Native: expo-file-system permanent storage
   - Web: IndexedDB (large images) + AsyncStorage (small images)
 - **Upload Process**: Image picker → Compression → Smart storage → State management → UI update
-- **Delete Process**: Identifies storage type → Removes from correct storage → Updates all state arrays
+- **Delete Process**: ⚠️ **BROKEN** - Identifies storage type → Removes from correct storage → Updates all state arrays
+  - **Critical Issue**: Delete buttons not responding to touch events
+  - **Index Problems**: Mapping issues between filtered and all images arrays
+  - **State Sync**: State synchronization problems after deletion
+  - **Touch Events**: Button conflicts with image scrolling
+  - **Fix Required**: See PRODUCTION_READINESS_PLAN.md Task 4
 
 ### Authentication System
 
@@ -79,7 +107,11 @@ docker/
 - **Cross-platform upload system**: Admin can upload images directly through the app interface
 - **Smart storage strategy**: Uses IndexedDB for large images, AsyncStorage for small images
 - **Advanced compression**: Canvas-based image compression with 600px max dimension and 0.5 JPEG quality
-- **Delete functionality**: Admin can delete uploaded images (memory images show info dialog)
+- **Delete functionality**: ⚠️ **PARTIALLY BROKEN** - Admin can delete uploaded images (memory images show info dialog)
+  - **Touch Issues**: Delete buttons not responding properly to touch events
+  - **Index Mapping**: Problems with originalIndex calculation for filtered vs all images
+  - **Storage Awareness**: Deletion logic needs to handle AsyncStorage vs IndexedDB correctly
+  - **State Management**: Issues with state updates after successful deletion
 - **Tight borders**: Custom `ImageWithTightBorder` component provides pixel-perfect borders
 - **Orientation detection**: Automatic horizontal/vertical categorization with filtering
 - **Supported formats**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
@@ -252,6 +284,55 @@ docker-compose restart # Restart after code changes
 - **Compression efficiency**: Canvas-based compression reduces storage usage by 80-90%
 - **Memory management**: Proper cleanup of object URLs and canvas contexts
 - **Docker optimization**: Volume mounting for development, proper layer caching for builds
+
+## Production Readiness Status
+
+### **Current Production Readiness**: 65%
+
+**Critical Blockers for Production**:
+
+1. **Delete Function Broken**: Touch events not working, index mapping issues
+2. **Security Vulnerabilities**: Hardcoded passwords, Docker image vulnerabilities
+3. **Debug Code**: 50+ console.log statements need removal
+4. **Missing Error Boundaries**: No global error handling
+5. **Production Configuration**: Missing build settings and crash reporting
+
+**Production Preparation Tasks** (See PRODUCTION_READINESS_PLAN.md):
+
+- [ ] Fix delete function (Task 4)
+- [ ] Remove debug console logs (Task 2)
+- [ ] Implement environment variables (Task 1)
+- [ ] Add error boundaries (Task 5)
+- [ ] Configure production builds (Task 6)
+- [ ] Security audit and hardening (Task 13)
+- [ ] Performance optimization (Task 14)
+- [ ] Comprehensive testing (Task 16)
+
+**Target Production Readiness**: 95%
+
+### **Known Critical Issues**:
+
+#### **Delete Function Problems**:
+
+- **Button Touch Events**: Delete buttons not responding to onPress events
+- **Index Calculation**: Issues mapping filtered array indices to original allImages array
+- **Storage Type Detection**: Need to properly identify AsyncStorage vs IndexedDB images
+- **State Synchronization**: Problems updating both uploadedImages and allImages after deletion
+- **Error Handling**: No graceful fallback when deletion fails
+
+#### **Security Vulnerabilities**:
+
+- **Hardcoded Password**: `admin123` in app/login.tsx line 21
+- **Docker Vulnerabilities**: High severity issues in node:20-alpine base image
+- **Missing Environment Variables**: No .env configuration for sensitive data
+- **Input Validation**: Missing sanitization for user inputs
+
+#### **Production Configuration Missing**:
+
+- **Build Scripts**: No production build configuration in package.json
+- **App Metadata**: Missing production settings in app.json
+- **Error Reporting**: No crash reporting or analytics setup
+- **Loading States**: Missing loading indicators for operations
 
 ## Advanced Storage System
 
